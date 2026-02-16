@@ -10,5 +10,7 @@ from .blueprint import utcp_bp
 # 导入以完成路由注册（各模块内 @utcp_bp.route(...)）
 from . import health  # noqa: F401
 from . import datetime_tool  # noqa: F401
+from . import shell_tool  # noqa: F401
+from . import file_tool  # noqa: F401
 
 __all__ = ["utcp_bp"]

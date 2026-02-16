@@ -108,13 +108,28 @@ def load_config():
     if CONFIG_PATH.exists():
         with open(CONFIG_PATH, "r", encoding="utf-8") as f:
             cfg = json.load(f)
-        return _migrate_legacy(cfg)
-    return {"providers": [dict(p) for p in DEFAULT_PROVIDERS]}
+        cfg = _migrate_legacy(cfg)
+        if "system_prompt" not in cfg:
+            cfg["system_prompt"] = ""
+        return cfg
+    return {"providers": [dict(p) for p in DEFAULT_PROVIDERS], "system_prompt": ""}
+
+
+# 默认 AI 前置提示词（自动化工作流角色与能力说明，可在设置中修改）
+DEFAULT_SYSTEM_PROMPT = (
+    "你是一个具备自动化能力的助手，运行在 Linux 服务器上。你可以使用工具执行 shell 命令、读写文件、列出目录、扫描网络等，"
+    "拥有与人类操作者相当的权限。请根据用户需求主动规划并执行多步操作（如先扫描再分析再总结），直到完成任务。"
+    "仅在需要澄清时向用户提问；完成操作后用简洁自然语言总结结果。"
+)
 
 
 def save_config(cfg):
     cfg = _migrate_legacy(dict(cfg))
-    to_save = {"providers": [], "utcp_plugin_enabled": cfg.get("utcp_plugin_enabled", True)}
+    to_save = {
+        "providers": [],
+        "utcp_plugin_enabled": cfg.get("utcp_plugin_enabled", True),
+        "system_prompt": cfg.get("system_prompt", ""),
+    }
     for p in cfg.get("providers") or []:
         if isinstance(p, dict) and p.get("id") in {m["provider_id"] for m in FIXED_PROVIDER_MODELS}:
             to_save["providers"].append({
@@ -133,6 +148,7 @@ def create_app():
     app.config["CONFIG_LOADER"] = load_config
     app.config["CONFIG_SAVER"] = save_config
     app.config["FIXED_PROVIDER_MODELS"] = FIXED_PROVIDER_MODELS
+    app.config["DEFAULT_SYSTEM_PROMPT"] = DEFAULT_SYSTEM_PROMPT
     if os.environ.get("HTTPS", "").lower() in ("1", "true", "yes") or os.environ.get("SSL_CERT_FILE"):
         app.config["PREFERRED_URL_SCHEME"] = "https"
 

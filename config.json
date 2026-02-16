@@ -13,5 +13,6 @@
       "api_key": "123"
     }
   ],
-  "utcp_plugin_enabled": true
+  "utcp_plugin_enabled": true,
+  "system_prompt": ""
 }

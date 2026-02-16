@@ -97,11 +97,11 @@ def chat_completion(provider_id: str, model: str, messages: list) -> dict:
     return _openai_style_chat(api_base, api_key, model, messages, stream=False)
 
 
-def chat_completion_with_tools(provider_id: str, model: str, messages: list, max_tool_rounds: int = 5, use_deep_thinking: bool = False) -> str:
+def chat_completion_with_tools(provider_id: str, model: str, messages: list, max_tool_rounds: int = 20, use_deep_thinking: bool = False) -> str:
     """
-    带 UTCP 工具调用的对话：向模型传入工具定义，若模型返回 tool_calls 则执行并继续请求，
+    带 UTCP 工具调用的对话（自动化工作流）：向模型传入工具定义，若模型返回 tool_calls 则执行并继续请求，
     直到模型返回纯文本或达到最大轮数。返回最终助手回复内容。
-    若服务商 API 不支持 tools（如返回 400），则回退为普通对话无工具调用。
+    max_tool_rounds 默认 20，支持多步自动化。若服务商 API 不支持 tools 则回退为普通对话。
     use_deep_thinking：是否启用深度思考（如 DeepSeek 的 reasoning 模式）。
     """
     from utcp.tools_def import get_openai_tools
@@ -157,13 +157,101 @@ def chat_completion_with_tools(provider_id: str, model: str, messages: list, max
     return content or ""
 
 
+def _tool_result_summary(result_json: str, max_len: int = 280) -> str:
+    """从工具返回的 JSON 中提取简短摘要，用于步骤栏展示。"""
+    try:
+        obj = json.loads(result_json) if isinstance(result_json, str) else result_json
+        if not obj.get("success"):
+            return obj.get("message") or obj.get("error") or "执行失败"
+        data = obj.get("data")
+        if data is None:
+            return obj.get("message") or "ok"
+        if isinstance(data, dict):
+            if "stdout" in data and data["stdout"]:
+                s = (data["stdout"] or "").strip()
+                return s[:max_len] + ("…" if len(s) > max_len else "")
+            if "content" in data:
+                s = (data.get("content") or "").strip()
+                return s[:max_len] + ("…" if len(s) > max_len else "")
+            if "summary" in data:
+                return (data.get("summary") or "")[:max_len]
+            if "entries" in data:
+                n = len(data.get("entries") or [])
+                return f"共 {n} 项"
+        return str(data)[:max_len]
+    except Exception:
+        return (result_json or "")[:max_len] + ("…" if len(str(result_json or "")) > max_len else "")
+
+
+def chat_completion_stream_with_tool_events(provider_id: str, model: str, messages: list, max_tool_rounds: int = 20, use_deep_thinking: bool = False):
+    """
+    带 UTCP 工具的工作流流式调用：每轮中先 yield tool_call 事件，执行工具后 yield tool_result 事件，
+    最后若无 tool_calls 则 yield content 事件（最终回复的逐块内容）。
+    前端可据此展示「操作步骤」子信息栏。
+    """
+    from utcp.tools_def import get_openai_tools
+    from utcp.tool_executor import execute_tool
+
+    api_base, api_key = _get_provider_config(provider_id)
+    tools = get_openai_tools()
+    current_messages = list(messages)
+    use_tools = True
+    extra_body = {"thinking": {"type": "enabled"}} if use_deep_thinking else {}
+
+    for _ in range(max_tool_rounds):
+        try:
+            resp = _openai_style_chat(
+                api_base, api_key, model, current_messages, stream=False,
+                tools=tools if use_tools else None,
+                extra_body=extra_body if extra_body else None,
+            )
+        except Exception:
+            if use_tools:
+                use_tools = False
+                resp = _openai_style_chat(
+                    api_base, api_key, model, current_messages, stream=False,
+                    tools=None, extra_body=extra_body if extra_body else None,
+                )
+            else:
+                raise
+        choice = (resp.get("choices") or [{}])[0]
+        msg = choice.get("message") or {}
+        tool_calls = msg.get("tool_calls")
+        content = (msg.get("content") or "").strip()
+
+        if not tool_calls:
+            chunk_size = 8
+            for i in range(0, len(content or ""), chunk_size):
+                yield {"type": "content", "content": (content or "")[i : i + chunk_size]}
+            return
+
+        current_messages.append(msg)
+        for tc in tool_calls:
+            tid = tc.get("id") or ""
+            fn = tc.get("function") or {}
+            name = fn.get("name") or ""
+            try:
+                args = json.loads(fn.get("arguments") or "{}")
+            except json.JSONDecodeError:
+                args = {}
+            args_preview = json.dumps(args, ensure_ascii=False)[:120]
+            yield {"type": "tool_call", "tool_call_id": tid, "name": name, "arguments": args, "arguments_preview": args_preview}
+            result = execute_tool(name, args)
+            summary = _tool_result_summary(result)
+            yield {"type": "tool_result", "tool_call_id": tid, "name": name, "result_summary": summary, "result_full": result[:2000] if len(result) > 2000 else result}
+            current_messages.append({"role": "tool", "tool_call_id": tid, "content": result})
+
+    yield {"type": "content", "content": ""}
+
+
 def chat_completion_stream(provider_id: str, model: str, messages: list, use_utcp_tools: bool = False, use_deep_thinking: bool = False):
-    """流式调用，yield 每个 content 块。若 use_utcp_tools 为 True 则先走带工具的对话再流式输出；否则直接流式请求。"""
+    """
+    流式调用。若 use_utcp_tools 为 True，yield 的为事件对象 {type, ...}（tool_call / tool_result / content），
+    供前端展示步骤栏与最终内容；否则 yield 纯 content 字符串块。
+    """
     if use_utcp_tools:
-        final_content = chat_completion_with_tools(provider_id, model, messages, use_deep_thinking=use_deep_thinking)
-        chunk_size = 8
-        for i in range(0, len(final_content), chunk_size):
-            yield final_content[i : i + chunk_size]
+        for ev in chat_completion_stream_with_tool_events(provider_id, model, messages, use_deep_thinking=use_deep_thinking):
+            yield ev
         return
     api_base, api_key = _get_provider_config(provider_id)
     extra_body = {"thinking": {"type": "enabled"}} if use_deep_thinking else None

@@ -16,6 +16,8 @@
 .utcp-card .out.empty { color: var(--muted); }
 .utcp-card .out.err { color: #fca5a5; }
 .utcp-card .loading { color: #94a3b8; }
+.utcp-card .utcp-textarea { width: 100%; margin-top: 0.5rem; padding: 0.5rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.875rem; font-family: inherit; resize: vertical; box-sizing: border-box; }
+.toolbar-check { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.875rem; color: var(--muted); cursor: pointer; }
 {% endblock %}
 {% block settings_content %}
 <div class="utcp-wrap">
@@ -41,6 +43,53 @@
         </div>
         <pre class="out empty" data-target="datetime">点击「调用」查看响应</pre>
     </div>
+
+    <div class="utcp-card">
+        <h2>执行命令 <code>POST /api/utcp/shell</code></h2>
+        <p class="desc">在服务器（Linux）上执行 shell 命令。可填超时秒数、工作目录（可选）。</p>
+        <div class="bar">
+            <input type="text" name="command" placeholder="命令，如 echo hello 或 ls -la" style="width: 18rem;">
+            <input type="number" name="timeout_seconds" placeholder="超时(秒)" value="60" style="width: 6rem;">
+            <input type="text" name="cwd" placeholder="工作目录(可选)" style="width: 10rem;">
+            <button type="button" class="btn-call" data-endpoint="/api/utcp/shell" data-method="POST" data-body-from="form">调用</button>
+        </div>
+        <pre class="out empty" data-target="shell">点击「调用」查看响应</pre>
+    </div>
+
+    <div class="utcp-card">
+        <h2>读取文件 <code>GET/POST /api/utcp/read-file</code></h2>
+        <p class="desc">读取项目根下文件内容。参数 path（必填）, encoding、max_bytes（可选）。</p>
+        <div class="bar">
+            <input type="text" name="path" placeholder="文件路径，如 README.md" style="width: 14rem;">
+            <input type="text" name="encoding" placeholder="编码(可选)" value="utf-8" style="width: 6rem;">
+            <button type="button" class="btn-call" data-endpoint="/api/utcp/read-file" data-method="POST" data-body-from="form">调用 POST</button>
+        </div>
+        <pre class="out empty" data-target="read-file">点击「调用」查看响应</pre>
+    </div>
+
+    <div class="utcp-card">
+        <h2>写入文件 <code>POST /api/utcp/write-file</code></h2>
+        <p class="desc">向项目根下文件写入内容。path、content 必填；append 为 true 时追加。</p>
+        <div class="bar">
+            <input type="text" name="path" placeholder="文件路径" style="width: 14rem;">
+            <label class="toolbar-check"><input type="checkbox" name="append" value="1"> 追加</label>
+            <button type="button" class="btn-call" data-endpoint="/api/utcp/write-file" data-method="POST" data-body-from="form">调用</button>
+        </div>
+        <textarea name="content" placeholder="写入内容" class="utcp-textarea" rows="2"></textarea>
+        <pre class="out empty" data-target="write-file">点击「调用」查看响应</pre>
+    </div>
+
+    <div class="utcp-card">
+        <h2>列出目录 <code>GET/POST /api/utcp/list-dir</code></h2>
+        <p class="desc">列出目录下的文件和子目录。path 默认当前目录；可选 include_hidden。</p>
+        <div class="bar">
+            <input type="text" name="path" placeholder="目录路径，如 . 或 utcp" style="width: 14rem;">
+            <label class="toolbar-check"><input type="checkbox" name="include_hidden" value="1"> 含隐藏</label>
+            <button type="button" class="btn-call" data-endpoint="/api/utcp/list-dir" data-method="POST" data-body-from="form">调用 POST</button>
+        </div>
+        <pre class="out empty" data-target="list-dir">点击「调用」查看响应</pre>
+    </div>
+
 </div>
 <script>
 (function() {
@@ -54,6 +103,17 @@
         var card = btn.closest('.utcp-card');
         var input = card ? card.querySelector('input[id]') : null;
         return input ? input.value.trim() : null;
+    }
+    function getBodyFromForm(card) {
+        var body = {};
+        var els = card.querySelectorAll('input[name], textarea[name], select[name]');
+        els.forEach(function(el) {
+            var name = el.getAttribute('name');
+            if (!name) return;
+            if (el.type === 'checkbox') body[name] = el.checked;
+            else body[name] = el.value;
+        });
+        return body;
     }
     function setOut(pre, text, isErr) {
         pre.textContent = text || '';
@@ -71,12 +131,18 @@
             var paramVal = param ? getParam(btn) : null;
             var url = endpoint;
             var options = { method: method, headers: {} };
-            if (method === 'GET' && param && paramVal !== null && paramVal !== '') {
+            var bodyFromForm = btn.getAttribute('data-body-from') === 'form';
+            var card = btn.closest('.utcp-card');
+            if (method === 'GET' && !bodyFromForm && param && paramVal !== null && paramVal !== '') {
                 url += (url.indexOf('?') >= 0 ? '&' : '?') + encodeURIComponent(param) + '=' + encodeURIComponent(paramVal);
             }
             if (method === 'POST') {
                 options.headers['Content-Type'] = 'application/json';
-                options.body = param ? JSON.stringify(paramVal !== null && paramVal !== '' ? { [param]: paramVal } : {}) : '{}';
+                if (bodyFromForm && card) {
+                    options.body = JSON.stringify(getBodyFromForm(card));
+                } else {
+                    options.body = param ? JSON.stringify(paramVal !== null && paramVal !== '' ? { [param]: paramVal } : {}) : '{}';
+                }
             }
             setOut(pre, '请求中…', false);
             pre.classList.add('loading');

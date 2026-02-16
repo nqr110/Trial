@@ -36,11 +36,18 @@ def config():
 
 @settings_bp.route("/global")
 def global_config():
-    """全局配置：API 配置检测、是否启用 UTCP 插件"""
+    """全局配置：API 配置检测、UTCP 插件、AI 前置提示词"""
     load = current_app.config["CONFIG_LOADER"]
     cfg = load()
     utcp_enabled = cfg.get("utcp_plugin_enabled", True)
-    return render_template("settings_global.html", utcp_plugin_enabled=utcp_enabled)
+    system_prompt = cfg.get("system_prompt", "")
+    from app import DEFAULT_SYSTEM_PROMPT
+    return render_template(
+        "settings_global.html",
+        utcp_plugin_enabled=utcp_enabled,
+        system_prompt=system_prompt,
+        default_system_prompt=DEFAULT_SYSTEM_PROMPT,
+    )
 
 
 @settings_bp.route("/global/api/check", methods=["POST"])
@@ -91,6 +98,26 @@ def global_utcp_toggle():
     cfg["utcp_plugin_enabled"] = bool(enabled)
     save(cfg)
     return jsonify({"ok": True, "utcp_plugin_enabled": cfg["utcp_plugin_enabled"]})
+
+
+@settings_bp.route("/global/api/system-prompt", methods=["GET", "POST"])
+def global_system_prompt():
+    """GET 返回当前 AI 前置提示词；POST 保存（body: {"system_prompt": "..."}）"""
+    load = current_app.config["CONFIG_LOADER"]
+    save = current_app.config["CONFIG_SAVER"]
+    if request.method == "GET":
+        cfg = load()
+        return jsonify({"system_prompt": cfg.get("system_prompt", "")})
+    data = request.get_json() or {}
+    system_prompt = data.get("system_prompt")
+    if system_prompt is None:
+        system_prompt = ""
+    else:
+        system_prompt = str(system_prompt).strip()
+    cfg = load()
+    cfg["system_prompt"] = system_prompt
+    save(cfg)
+    return jsonify({"ok": True, "system_prompt": cfg["system_prompt"]})
 
 
 @settings_bp.route("/utcp")

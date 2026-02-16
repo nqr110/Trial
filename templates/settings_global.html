@@ -18,6 +18,8 @@
 .toggle-row label { font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; gap: 0.5rem; }
 .toggle-row input[type="checkbox"] { width: 1.1rem; height: 1.1rem; cursor: pointer; }
 .status-msg { font-size: 0.8rem; color: var(--muted); margin-top: 0.5rem; }
+.system-prompt-textarea { width: 100%; padding: 0.75rem; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 0.9rem; font-family: inherit; resize: vertical; min-height: 120px; box-sizing: border-box; }
+.system-prompt-textarea:focus { outline: none; border-color: var(--accent); }
 {% endblock %}
 {% block settings_content %}
 <div class="global-wrap">
@@ -33,6 +35,15 @@
         <p class="desc">关闭后，对话页将不展示「启用 UTCP 工具」选项。</p>
         <label class="toggle-row"><input type="checkbox" id="utcpEnabled" {% if utcp_plugin_enabled %}checked{% endif %}> 启用 UTCP 插件</label>
         <div class="status-msg" id="utcpStatus"></div>
+    </section>
+    <section class="global-section">
+        <h2>AI 前置提示词</h2>
+        <p class="desc">在每条对话前注入的系统提示词，用于设定 AI 角色与能力（如自动化工作流）。留空则使用内置默认说明。</p>
+        <textarea id="systemPrompt" class="system-prompt-textarea" rows="6" placeholder="{{ default_system_prompt | e }}">{{ system_prompt | e }}</textarea>
+        <div style="margin-top: 0.5rem;">
+            <button type="button" class="btn-check" id="btnSaveSystemPrompt">保存前置提示词</button>
+            <span class="status-msg" id="systemPromptStatus"></span>
+        </div>
     </section>
 </div>
 <script>
@@ -53,6 +64,12 @@
     document.getElementById('utcpEnabled').addEventListener('change', function() {
         var st = document.getElementById('utcpStatus');
         fetch('/settings/global/api/utcp', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ utcp_plugin_enabled: this.checked }) })
+            .then(function(r) { return r.json(); }).then(function(d) { st.textContent = d.ok ? '已保存' : (d.error || ''); }).catch(function() { st.textContent = '保存失败'; });
+    });
+    document.getElementById('btnSaveSystemPrompt').addEventListener('click', function() {
+        var st = document.getElementById('systemPromptStatus');
+        var text = document.getElementById('systemPrompt').value || '';
+        fetch('/settings/global/api/system-prompt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ system_prompt: text }) })
             .then(function(r) { return r.json(); }).then(function(d) { st.textContent = d.ok ? '已保存' : (d.error || ''); }).catch(function() { st.textContent = '保存失败'; });
     });
 })();

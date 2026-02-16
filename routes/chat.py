@@ -93,6 +93,17 @@ def api_conversation_delete(cid):
     return jsonify({"ok": True})
 
 
+def _inject_system_prompt(messages, use_utcp_tools):
+    """若配置了前置提示词（或启用 UTCP 时使用默认），则在 messages 前插入 system 消息。"""
+    cfg = current_app.config["CONFIG_LOADER"]()
+    system_prompt = (cfg.get("system_prompt") or "").strip()
+    if use_utcp_tools and not system_prompt:
+        system_prompt = (current_app.config.get("DEFAULT_SYSTEM_PROMPT") or "").strip()
+    if not system_prompt:
+        return messages
+    return [{"role": "system", "content": system_prompt}] + list(messages)
+
+
 @chat_bp.route("/api/chat", methods=["POST"])
 def api_chat():
     """对话 API：provider_id + model；完整消息历史；可选 conversation_id、use_utcp_tools、use_deep_thinking"""
@@ -105,6 +116,7 @@ def api_chat():
     use_deep_thinking = data.get("use_deep_thinking") is True
     if not provider_id or not model or not messages:
         return jsonify({"error": "缺少 provider_id、model 或 messages"}), 400
+    messages = _inject_system_prompt(messages, use_utcp_tools)
     try:
         if use_utcp_tools:
             content = chat_completion_with_tools(
@@ -146,6 +158,7 @@ def api_chat_stream():
     use_deep_thinking = data.get("use_deep_thinking") is True
     if not provider_id or not model or not messages:
         return jsonify({"error": "缺少 provider_id、model 或 messages"}), 400
+    messages = _inject_system_prompt(messages, use_utcp_tools)
 
     def generate():
         full_content = []
@@ -154,8 +167,14 @@ def api_chat_stream():
                 provider_id=provider_id, model=model, messages=messages,
                 use_utcp_tools=use_utcp_tools, use_deep_thinking=use_deep_thinking,
             ):
-                full_content.append(chunk)
-                yield f"data: {json.dumps({'content': chunk}, ensure_ascii=False)}\n\n"
+                if use_utcp_tools and isinstance(chunk, dict):
+                    ev = chunk
+                    if ev.get("type") == "content":
+                        full_content.append(ev.get("content") or "")
+                    yield f"data: {json.dumps(ev, ensure_ascii=False)}\n\n"
+                else:
+                    full_content.append(chunk if isinstance(chunk, str) else "")
+                    yield f"data: {json.dumps({'content': chunk}, ensure_ascii=False)}\n\n"
             content = "".join(full_content)
             last_user = messages[-1].get("content", "") if messages else ""
             model_label = _model_label(provider_id, model)
