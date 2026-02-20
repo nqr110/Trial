@@ -7,6 +7,7 @@ from . import datetime_tool
 from . import shell_tool
 from . import file_tool
 from services import knowledge_base
+from services import browser_packets
 
 
 def execute_tool(name: str, arguments: dict, llm_judge_callback=None, safe_mode: bool = False, project_root=None, uploads_dir=None) -> str:
@@ -89,6 +90,34 @@ def execute_tool(name: str, arguments: dict, llm_judge_callback=None, safe_mode:
                 top_k = 5
             result = knowledge_base.search(query=query, top_k=top_k)
             return json.dumps(result, ensure_ascii=False)
+
+        if name == "preview_web_page":
+            url = (args.get("url") or "").strip()
+            if not url.startswith("http://") and not url.startswith("https://"):
+                return json.dumps({"success": False, "protocol": "UTCP", "message": "url 须为 http 或 https", "data": None}, ensure_ascii=False)
+            return json.dumps({"success": True, "protocol": "UTCP", "message": "ok", "data": {"url": url}}, ensure_ascii=False)
+
+        if name == "list_browser_packets":
+            url_contains = args.get("url_contains") or ""
+            limit = args.get("limit")
+            if limit is not None:
+                try:
+                    limit = max(1, min(200, int(limit)))
+                except (TypeError, ValueError):
+                    limit = 50
+            else:
+                limit = 50
+            items = browser_packets.list_packets(url_contains=url_contains, limit=limit)
+            return json.dumps({"success": True, "protocol": "UTCP", "message": "ok", "data": {"packets": items, "count": len(items)}}, ensure_ascii=False)
+
+        if name == "get_browser_packet":
+            packet_id = (args.get("packet_id") or "").strip()
+            if not packet_id:
+                return json.dumps({"success": False, "protocol": "UTCP", "message": "缺少 packet_id", "data": None}, ensure_ascii=False)
+            p = browser_packets.get_packet(packet_id)
+            if not p:
+                return json.dumps({"success": False, "protocol": "UTCP", "message": "未找到该录包", "data": None}, ensure_ascii=False)
+            return json.dumps({"success": True, "protocol": "UTCP", "message": "ok", "data": p}, ensure_ascii=False)
 
         return json.dumps({"success": False, "error": f"未知工具: {name}"}, ensure_ascii=False)
     except Exception as e:

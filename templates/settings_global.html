@@ -60,6 +60,12 @@
             <input type="number" id="utcpMaxRounds" min="1" max="200" value="{{ utcp_max_tool_rounds }}" style="width: 5rem; padding: 0.4rem 0.5rem; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text);">
             <span class="status-msg" id="utcpToolsStatus"></span>
         </div>
+        <div style="margin-top: 0.5rem;">
+            <label class="toggle-row"><input type="checkbox" id="utcpUnlimitedRounds" {% if utcp_unlimited_rounds %}checked{% endif %}> 开启轮次无上限模式（执行超长任务流）</label>
+        </div>
+        <div style="margin-top: 0.5rem;">
+            <label class="toggle-row"><input type="checkbox" id="webPreviewEnabled" {% if web_preview_enabled %}checked{% endif %}> 启用自动化任务中的 Web 页面预览</label>
+        </div>
     </section>
     <section class="global-section">
         <h2>安全模式</h2>
@@ -138,11 +144,18 @@
         var enabled = document.getElementById('utcpToolsEnabled').checked;
         var rounds = parseInt(document.getElementById('utcpMaxRounds').value, 10) || 50;
         rounds = Math.max(1, Math.min(200, rounds));
-        fetch('/settings/global/api/utcp-tools', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ utcp_tools_enabled: enabled, utcp_max_tool_rounds: rounds }) })
+        var unlimited = document.getElementById('utcpUnlimitedRounds').checked;
+        fetch('/settings/global/api/utcp-tools', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ utcp_tools_enabled: enabled, utcp_max_tool_rounds: rounds, utcp_unlimited_rounds: unlimited }) })
             .then(function(r) { return r.json(); }).then(function(d) { st.textContent = d.ok ? '已保存' : (d.error || ''); }).catch(function() { st.textContent = '保存失败'; });
     }
     document.getElementById('utcpToolsEnabled').addEventListener('change', saveUtcpTools);
     document.getElementById('utcpMaxRounds').addEventListener('change', saveUtcpTools);
+    document.getElementById('utcpUnlimitedRounds').addEventListener('change', saveUtcpTools);
+    document.getElementById('webPreviewEnabled').addEventListener('change', function() {
+        var st = document.getElementById('utcpToolsStatus');
+        fetch('/settings/global/api/web-preview', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ web_preview_enabled: this.checked }) })
+            .then(function(r) { return r.json(); }).then(function(d) { st.textContent = d.ok ? '已保存' : (d.error || ''); }).catch(function() { st.textContent = '保存失败'; });
+    });
     document.getElementById('safeMode').addEventListener('change', function() {
         var st = document.getElementById('safeModeStatus');
         fetch('/settings/global/api/safe-mode', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ safe_mode: this.checked }) })

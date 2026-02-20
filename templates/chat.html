@@ -66,6 +66,18 @@
 .messages-new-hint.show { display: inline-block; }
 .messages-wrap { position: relative; flex: 1; display: flex; flex-direction: column; min-height: 0; }
 .stream-content { margin-top: 0.25rem; min-height: 1em; flex: 1; min-width: 0; }
+.plan-panel { margin-bottom: 0.5rem; border: 1px solid var(--border); border-radius: 8px; background: rgba(0,0,0,0.02); padding: 0.5rem 0.75rem; }
+.plan-panel-title { font-size: 0.8rem; color: var(--muted); margin-bottom: 0.35rem; font-weight: 600; }
+.plan-panel-body { font-size: 0.9rem; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+.plan-panel-body p { margin: 0.25em 0; }
+.web-preview-panel { margin-bottom: 0.5rem; border: 1px solid var(--border); border-radius: 8px; background: var(--card); overflow: hidden; }
+.web-preview-panel.collapsed .web-preview-iframe-wrap { display: none; }
+.web-preview-header { padding: 0.4rem 0.75rem; font-size: 0.8rem; color: var(--muted); background: rgba(0,0,0,0.03); cursor: pointer; user-select: none; display: flex; align-items: center; justify-content: space-between; }
+.web-preview-header:hover { color: var(--text); }
+.web-preview-header .web-preview-open-tab { margin-left: auto; padding-left: 0.5rem; font-size: 0.75rem; color: var(--accent); cursor: pointer; text-decoration: none; }
+.web-preview-header .web-preview-open-tab:hover { text-decoration: underline; }
+.web-preview-iframe-wrap { width: 100%; height: 320px; min-height: 200px; background: var(--bg); }
+.web-preview-iframe { width: 100%; height: 100%; border: none; display: block; }
 .msg.assistant .bubble { display: flex; flex-direction: column; }
 .input-wrap { padding: 1rem; border-top: 1px solid var(--border); background: var(--card); }
 .input-wrap.drag-over { background: rgba(59, 130, 246, 0.08); outline: 2px dashed var(--accent); outline-offset: -2px; }
@@ -307,6 +319,7 @@
     var deepThinkingEnabled = false;
     var utcpPluginEnabled = true;
     var utcpToolsEnabled = true;
+    var webPreviewEnabled = true;
     function updateToolbarOptionsVisibility() {
         const idx = parseInt(modelOptionEl.value, 10);
         const p = providers[idx];
@@ -327,6 +340,7 @@
             else if (data.models && data.models.length) providers = data.models;
             utcpPluginEnabled = data.utcp_plugin_enabled !== false;
             utcpToolsEnabled = data.utcp_tools_enabled !== false;
+            webPreviewEnabled = data.web_preview_enabled !== false;
             fillModelOptions();
         }).catch(function() {
             fillModelOptions();
@@ -550,10 +564,13 @@
         var useUtcpStream = sel.useUtcpTools;
         var assistantBubble = addMessage('assistant', '', { id: 'streaming-msg', model_label: currentLabel, forStreaming: useUtcpStream });
         var streamContent = '';
+        var streamPlanContent = '';
         var streamToolSteps = [];
         var stepsPanel = useUtcpStream ? assistantBubble.querySelector('.steps-panel') : null;
         var stepsPanelBody = useUtcpStream ? (assistantBubble.querySelector('.steps-panel-body')) : null;
         var contentWrap = useUtcpStream ? assistantBubble.querySelector('.stream-content') : null;
+        var planPanel = null;
+        var webPreviewPanel = null;
         var streamAbortController = new AbortController();
         if (window.trialStreamAbort) window.trialStreamAbort = null;
         window.trialStreamAbort = function() { try { streamAbortController.abort(); } catch (e) {} };
@@ -608,6 +625,49 @@
                                     stepsPanelBody.appendChild(step);
                                     updateStepsSummary();
                                     onTaskInfoUpdate();
+                                } else if (data.type === 'web_view' && useUtcpStream && webPreviewEnabled) {
+                                    var url = (data.url || '').trim();
+                                    if (url.indexOf('http://') === 0 || url.indexOf('https://') === 0) {
+                                        if (!webPreviewPanel) {
+                                            webPreviewPanel = document.createElement('div');
+                                            webPreviewPanel.className = 'web-preview-panel';
+                                            var headerHtml = '<span>Web 页面预览</span><a class="web-preview-open-tab" href="#" target="_blank" rel="noopener">在新标签页打开</a>';
+                                            webPreviewPanel.innerHTML = '<div class="web-preview-header">' + headerHtml + '</div><div class="web-preview-iframe-wrap"><iframe class="web-preview-iframe" sandbox="allow-scripts allow-same-origin allow-forms allow-popups" title="预览"></iframe></div>';
+                                            var bubble = stepsPanel && stepsPanel.parentNode;
+                                            if (bubble && contentWrap) bubble.insertBefore(webPreviewPanel, contentWrap);
+                                            var hdr = webPreviewPanel.querySelector('.web-preview-header');
+                                            if (hdr) hdr.addEventListener('click', function(e) { if (!e.target.closest('.web-preview-open-tab')) webPreviewPanel.classList.toggle('collapsed'); });
+                                            var openTabEl = webPreviewPanel.querySelector('.web-preview-open-tab');
+                                            if (openTabEl) openTabEl.addEventListener('click', function(e) { e.stopPropagation(); });
+                                        }
+                                        if (webPreviewPanel) {
+                                            var ifr = webPreviewPanel.querySelector('.web-preview-iframe');
+                                            if (ifr) {
+                                                var iframeSrc = url;
+                                                try {
+                                                    var a = document.createElement('a');
+                                                    a.href = url;
+                                                    var host = (a.hostname || '').toLowerCase();
+                                                    if (host === 'localhost' || host === '127.0.0.1' || host === '') iframeSrc = '/api/web-preview-proxy?url=' + encodeURIComponent(url);
+                                                } catch (e) {}
+                                                ifr.src = iframeSrc;
+                                            }
+                                            var openTab = webPreviewPanel.querySelector('.web-preview-open-tab');
+                                            if (openTab) openTab.href = url;
+                                        }
+                                        messagesEl.scrollTop = messagesEl.scrollHeight;
+                                    }
+                                } else if (data.type === 'plan') {
+                                    streamPlanContent = data.content || '';
+                                    if (stepsPanel && !planPanel) {
+                                        planPanel = document.createElement('div');
+                                        planPanel.className = 'plan-panel';
+                                        planPanel.innerHTML = '<div class="plan-panel-title">当前情况与计划</div><div class="plan-panel-body"></div>';
+                                        stepsPanel.parentNode.insertBefore(planPanel, stepsPanel);
+                                    }
+                                    if (planPanel) planPanel.querySelector('.plan-panel-body').innerHTML = renderMarkdown(streamPlanContent);
+                                    messagesEl.scrollTop = messagesEl.scrollHeight;
+                                    onTaskInfoUpdate();
                                 } else if (data.type === 'tool_result' && stepsPanelBody) {
                                     var tid = data.tool_call_id || '';
                                     var fullText = (data.result_full || data.result_summary || '');
@@ -646,7 +706,8 @@
         })
         .then(function() {
             if (stepsPanel && stepsPanelBody && stepsPanelBody.querySelectorAll('.step-item').length === 0) stepsPanel.style.display = 'none';
-            messages.push({ role: 'assistant', content: streamContent, model_label: currentLabel, tool_steps: streamToolSteps.length ? streamToolSteps : undefined });
+            var finalContent = streamPlanContent ? ('【当前情况与计划】\n\n' + streamPlanContent + '\n\n---\n\n' + streamContent) : streamContent;
+            messages.push({ role: 'assistant', content: finalContent, model_label: currentLabel, tool_steps: streamToolSteps.length ? streamToolSteps : undefined });
             var el = document.getElementById('streaming-msg');
             if (el) el.id = '';
             renderConversationList();

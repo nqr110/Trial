@@ -11,6 +11,7 @@
 .block-header .model-badge { font-size: 0.8rem; color: var(--muted); background: var(--bg); padding: 0.25rem 0.5rem; border-radius: 6px; }
 .block label { display: block; margin-bottom: 0.25rem; color: var(--muted); font-size: 0.875rem; }
 .block input.full { width: 100%; padding: 0.5rem 0.75rem; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); margin-bottom: 0.5rem; }
+.block input.full[readonly] { background: var(--border); color: var(--muted); cursor: not-allowed; }
 .block .api-doc { font-size: 0.8rem; margin-bottom: 0.75rem; }
 .block .api-doc a { color: var(--accent); }
 .save-btn { padding: 0.6rem 1.25rem; background: var(--accent); color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 0.9rem; }
@@ -20,21 +21,23 @@
 {% block settings_content %}
 <div class="admin-wrap">
     <h1>API 信息</h1>
-    <p class="sub">服务商与模型已固定，仅可配置 API 地址与 Key。API Key 留空则不修改已保存的值。</p>
+    <p class="sub">服务商与模型已固定。API Base 不可修改；仅可配置 API Key，留空则不修改已保存的值。</p>
 
     <div id="providerBlocks">
         {% for p in providers %}
         <div class="block" data-provider-id="{{ p.provider_id }}">
             <div class="block-header">
                 <span class="provider-title">{{ p.provider_name }}</span>
-                <span class="model-badge">{{ p.model }}</span>
+                {% for model in p.models %}
+                <span class="model-badge">{{ model }}</span>
+                {% endfor %}
             </div>
             {% if p.api_doc %}
             <p class="api-doc">API 文档：<a href="{{ p.api_doc }}" target="_blank" rel="noopener">打开文档</a></p>
             {% endif %}
             <input type="hidden" class="provider-id" value="{{ p.provider_id }}" data-field="id">
             <label>API Base URL</label>
-            <input type="text" class="full" data-field="api_base" value="{{ p.api_base or '' }}" placeholder="https://...">
+            <input type="text" class="full" data-field="api_base" value="{{ p.api_base or '' }}" placeholder="https://..." readonly>
             <label>API Key</label>
             <input type="password" class="full" data-field="api_key" value="{{ p.api_key or '' }}" placeholder="留空则不修改已保存的 Key">
         </div>

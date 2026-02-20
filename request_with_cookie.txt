@@ -1,0 +1,7 @@
+POST /level3.php HTTP/1.1
+Host: redtiger.labs.overthewire.org
+Cookie: $(cat cookies.txt | grep -v '#' | awk '{print $6"="$7}' | head -1)
+Content-Type: application/x-www-form-urlencoded
+Content-Length: 29
+
+user=Admin&password=test&login=Login

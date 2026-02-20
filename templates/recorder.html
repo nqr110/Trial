@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block title %}记录器 - Trial{% endblock %}
+{% block extra_css %}
+{{ super() }}
+.recorder-wrap { padding: 1rem 1.5rem; max-width: 100%; }
+.recorder-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1rem; }
+.recorder-head h1 { font-size: 1.25rem; margin: 0; }
+.recorder-toolbar { display: flex; align-items: center; gap: 0.5rem; }
+.recorder-toolbar input { padding: 0.4rem 0.6rem; border: 1px solid var(--border); border-radius: 6px; width: 14rem; font-size: 0.875rem; }
+.recorder-toolbar button { padding: 0.4rem 0.75rem; border-radius: 6px; font-size: 0.875rem; cursor: pointer; border: 1px solid var(--border); background: var(--bg); color: var(--text); }
+.recorder-toolbar button:hover { border-color: var(--accent); color: var(--accent); }
+.recorder-toolbar button.clear { background: #fef2f2; color: #dc2626; border-color: #fecaca; }
+.recorder-toolbar button.clear:hover { background: #fecaca; }
+.recorder-table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; background: var(--card); }
+.recorder-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.recorder-table th { text-align: left; padding: 0.5rem 0.75rem; background: var(--bg); border-bottom: 1px solid var(--border); color: var(--muted); font-weight: 600; }
+.recorder-table td { padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border); }
+.recorder-table tr:hover { background: rgba(0,0,0,0.02); }
+.recorder-table tr.expand td { border-bottom: none; }
+.recorder-detail { padding: 0.75rem 1rem; background: var(--bg); border-bottom: 1px solid var(--border); font-size: 0.8rem; }
+.recorder-detail pre { margin: 0; white-space: pre-wrap; word-break: break-all; max-height: 200px; overflow-y: auto; }
+.recorder-detail h4 { margin: 0 0 0.35rem 0; color: var(--muted); font-size: 0.75rem; }
+.recorder-empty { padding: 2rem; text-align: center; color: var(--muted); }
+.recorder-proxy-box { padding: 1rem 1.25rem; margin-bottom: 1rem; background: #eff6ff; border: 1px solid #93c5fd; border-radius: 8px; }
+.recorder-proxy-box strong { color: #1d4ed8; }
+.recorder-proxy-hint { margin: 0.5rem 0 0 0; font-size: 0.85rem; color: var(--muted); }
+{% endblock %}
+{% block content %}
+<div class="recorder-wrap">
+    <div class="recorder-proxy-box" id="proxyBox">
+        <strong>录制代理</strong>：<span id="proxyAddr">正在获取…</span>
+        <p class="recorder-proxy-hint">请将本机浏览器的 HTTP 代理设置为上述地址（主机 127.0.0.1，端口见上方），然后使用该浏览器访问网页，流量将出现在下方列表中。</p>
+    </div>
+    <div class="recorder-head">
+        <h1>记录器</h1>
+        <div class="recorder-toolbar">
+            <input type="text" id="filterUrl" placeholder="按 URL 过滤" />
+            <button type="button" id="btnRefresh">刷新</button>
+            <button type="button" id="btnClear" class="clear">清空记录</button>
+        </div>
+    </div>
+    <div class="recorder-table-wrap">
+        <table class="recorder-table">
+            <thead>
+                <tr>
+                    <th style="width: 5rem;">时间</th>
+                    <th style="width: 4rem;">方法</th>
+                    <th>URL</th>
+                    <th style="width: 4rem;">状态</th>
+                    <th style="width: 5rem;">大小</th>
+                </tr>
+            </thead>
+            <tbody id="packetList"></tbody>
+        </table>
+    </div>
+    <div class="recorder-empty" id="emptyHint" style="display: none;">暂无录包。请将浏览器 HTTP 代理设置为上方地址后访问网页。</div>
+</div>
+<script>
+(function() {
+    var tbody = document.getElementById('packetList');
+    var emptyHint = document.getElementById('emptyHint');
+    var proxyAddr = document.getElementById('proxyAddr');
+    var filterUrl = document.getElementById('filterUrl');
+    var btnRefresh = document.getElementById('btnRefresh');
+    var btnClear = document.getElementById('btnClear');
+
+    function loadProxy() {
+        fetch('/api/recorder/proxy').then(function(r) { return r.json(); }).then(function(d) {
+            if (d.ok && d.port != null) {
+                proxyAddr.textContent = '127.0.0.1:' + d.port + '（端口 ' + d.port + '）';
+            } else {
+                proxyAddr.textContent = '启动失败：' + (d.error || '未知');
+            }
+        }).catch(function() { proxyAddr.textContent = '获取失败'; });
+    }
+    loadProxy();
+
+    function formatTime(ts) {
+        if (!ts) return '-';
+        var d = new Date(ts * 1000);
+        return d.toLocaleTimeString('zh-CN', { hour12: false }) + '.' + String(Math.floor((ts % 1) * 1000)).padStart(3, '0');
+    }
+
+    function load() {
+        var q = (filterUrl.value || '').trim();
+        var url = '/api/browser/packets?limit=500';
+        if (q) url += '&url_contains=' + encodeURIComponent(q);
+        fetch(url).then(function(r) { return r.json(); }).then(function(data) {
+            var packets = data.packets || [];
+            tbody.innerHTML = '';
+            emptyHint.style.display = packets.length ? 'none' : 'block';
+            packets.forEach(function(p) {
+                var tr = document.createElement('tr');
+                tr.dataset.id = p.id;
+                tr.style.cursor = 'pointer';
+                var resLen = 0;
+                try { resLen = (p.response_body_preview || '').length; } catch (e) {}
+                tr.innerHTML = '<td>' + formatTime(p.time) + '</td><td>' + (p.method || 'GET') + '</td><td style="max-width: 280px; overflow: hidden; text-overflow: ellipsis;" title="' + (p.url || '').replace(/"/g, '&quot;') + '">' + (p.url || '-') + '</td><td>' + (p.response_status || '-') + '</td><td>' + resLen + '</td>';
+                tr.addEventListener('click', function() {
+                    var expanded = tr.classList.toggle('expand');
+                    var next = tr.nextElementSibling;
+                    if (expanded) {
+                        if (next && next.classList.contains('recorder-detail-row')) return;
+                        fetch('/api/browser/packets/' + p.id).then(function(r) { return r.json(); }).then(function(d) {
+                            var detailRow = document.createElement('tr');
+                            detailRow.className = 'recorder-detail-row';
+                            var reqH = (d.request_headers && Object.keys(d.request_headers).length) ? JSON.stringify(d.request_headers, null, 2) : '';
+                            var resH = (d.response_headers && Object.keys(d.response_headers).length) ? JSON.stringify(d.response_headers, null, 2) : '';
+                            var reqB = d.request_body_preview || '(无)';
+                            var resB = d.response_body_preview || '(无)';
+                            detailRow.innerHTML = '<td colspan="5" class="recorder-detail">' +
+                                '<h4>请求头</h4><pre>' + reqH.replace(/</g, '&lt;') + '</pre>' +
+                                '<h4>请求体预览</h4><pre>' + String(reqB).replace(/</g, '&lt;').substring(0, 2000) + '</pre>' +
+                                '<h4>响应头</h4><pre>' + resH.replace(/</g, '&lt;') + '</pre>' +
+                                '<h4>响应体预览</h4><pre>' + String(resB).replace(/</g, '&lt;').substring(0, 8000) + '</pre>' +
+                                '</td>';
+                            tr.parentNode.insertBefore(detailRow, next);
+                        });
+                    } else {
+                        if (next && next.classList.contains('recorder-detail-row')) next.remove();
+                    }
+                });
+                tbody.appendChild(tr);
+            });
+        }).catch(function() { tbody.innerHTML = '<tr><td colspan="5">加载失败</td></tr>'; });
+    }
+
+    btnRefresh.addEventListener('click', load);
+    btnClear.addEventListener('click', function() {
+        if (!confirm('确定清空所有录包？')) return;
+        fetch('/api/browser/packets', { method: 'POST', headers: { 'Content-Type': 'application/json' } })
+            .then(function(r) { return r.json(); }).then(function() { load(); });
+    });
+    filterUrl.addEventListener('keydown', function(e) { if (e.key === 'Enter') load(); });
+    load();
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,99 @@
+{"sessionId": "9d8348", "timestamp": 1771579976112, "location": "browser.api_status", "message": "status", "data": {"ready": false, "vnc": false}, "hypothesisId": "H1"}
+{"sessionId": "9d8348", "timestamp": 1771579980977, "location": "browser_session.ensure_started", "message": "proxy started", "data": {"has_url": true}, "hypothesisId": "H2"}
+{"sessionId": "9d8348", "timestamp": 1771579981478, "location": "browser_session.ensure_started", "message": "xvfb", "data": {"ok": false}, "hypothesisId": "H1"}
+{"sessionId": "9d8348", "timestamp": 1771579981478, "location": "browser_session.ensure_started", "message": "use_vnc_mode", "data": {"use_vnc_mode": false}, "hypothesisId": "H1"}
+{"sessionId": "9d8348", "timestamp": 1771579981969, "location": "browser_session.ensure_started", "message": "ensure_started done", "data": {"_use_vnc": false}, "hypothesisId": "H1"}
+{"sessionId": "9d8348", "timestamp": 1771579981969, "location": "browser.api_start", "message": "start result", "data": {"ok": true, "error": null}, "hypothesisId": "H2"}
+{"sessionId": "9d8348", "timestamp": 1771579982004, "location": "browser.api_status", "message": "status", "data": {"ready": true, "vnc": false}, "hypothesisId": "H1"}
+{"sessionId": "9d8348", "timestamp": 1771580304655, "location": "browser.api_status", "message": "status", "data": {"ready": false, "vnc": false}, "hypothesisId": "H1"}
+{"sessionId": "9d8348", "timestamp": 1771580313321, "location": "browser.api_start", "message": "start result", "data": {"ok": false, "error": "\u9700\u8981 VNC \u73af\u5883\uff1a\u8bf7\u5b89\u88c5 Xvfb\u3001x11vnc\u3001websockify \u540e\u518d\u4f7f\u7528\u5185\u7f6e\u6d4f\u89c8\u5668\u3002"}, "hypothesisId": "H2"}
+{"sessionId": "9d8348", "timestamp": 1771580909398, "location": "browser.api_status", "message": "status", "data": {"ready": false, "vnc": false}, "hypothesisId": "H1"}
+{"sessionId": "9d8348", "timestamp": 1771580911135, "location": "browser.api_start", "message": "start result", "data": {"ok": false, "error": "\u9700\u8981 VNC \u73af\u5883\uff1a\u8bf7\u5b89\u88c5 Xvfb\u3001x11vnc\u3001websockify \u540e\u518d\u4f7f\u7528\u5185\u7f6e\u6d4f\u89c8\u5668\u3002"}, "hypothesisId": "H2"}
+{"sessionId": "9d8348", "timestamp": 1771580924647, "location": "browser.api_start", "message": "start result", "data": {"ok": false, "error": "\u9700\u8981 VNC \u73af\u5883\uff1a\u8bf7\u5b89\u88c5 Xvfb\u3001x11vnc\u3001websockify \u540e\u518d\u4f7f\u7528\u5185\u7f6e\u6d4f\u89c8\u5668\u3002"}, "hypothesisId": "H2"}
+{"sessionId": "9d8348", "timestamp": 1771581084682, "location": "browser.api_status", "message": "status", "data": {"ready": false, "vnc": false}, "hypothesisId": "H1"}
+{"sessionId": "9d8348", "timestamp": 1771581086433, "location": "browser.api_start", "message": "start result", "data": {"ok": false, "error": "\u9700\u8981 VNC \u73af\u5883\uff1a\u8bf7\u5b89\u88c5 Xvfb\u3001x11vnc\u3001websockify \u540e\u518d\u4f7f\u7528\u5185\u7f6e\u6d4f\u89c8\u5668\u3002"}, "hypothesisId": "H2"}
+{"sessionId": "9d8348", "timestamp": 1771581094756, "location": "browser.api_start", "message": "start result", "data": {"ok": false, "error": "\u9700\u8981 VNC \u73af\u5883\uff1a\u8bf7\u5b89\u88c5 Xvfb\u3001x11vnc\u3001websockify \u540e\u518d\u4f7f\u7528\u5185\u7f6e\u6d4f\u89c8\u5668\u3002"}, "hypothesisId": "H2"}
+{"sessionId": "9d8348", "timestamp": 1771581322445, "location": "browser.api_status", "message": "status", "data": {"ready": false, "vnc": false}, "hypothesisId": "H1"}
+{"sessionId": "9d8348", "timestamp": 1771581323712, "location": "browser.api_start", "message": "start result", "data": {"ok": false, "error": "VNC \u4e0d\u53ef\u7528\uff1aXvfb \u542f\u52a8\u540e\u9000\u51fa: (EE) \nFatal server error:\n(EE) Server is already active for display 99\n\tIf this server is no longer running, remove /tmp/.X99-lock\n\tand start again.\n(EE)\u3002\u8be6\u89c1 data/browser_vnc_diag.log"}, "hypothesisId": "H2"}
+{"sessionId": "9d8348", "timestamp": 1771581442790, "location": "browser.api_status", "message": "status", "data": {"ready": false, "vnc": false}, "hypothesisId": "H1"}
+{"sessionId": "9d8348", "timestamp": 1771581445191, "location": "browser.api_start", "message": "start result", "data": {"ok": false, "error": "VNC \u4e0d\u53ef\u7528\uff1ax11vnc \u542f\u52a8\u540e\u9000\u51fa: 20/02/2026 04:57:24 passing arg to libvncserver: -rfbport\n20/02/2026 04:57:24 passing arg to libvncserver: 5900\n20/02/2026 04:57:24 x11vnc version: 0.9.17 lastmod: 2025-04-11  pid: 36367\n20/02/2026 04\u3002\u8be6\u89c1 data/browser_vnc_diag.log"}, "hypothesisId": "H2"}
+{"sessionId": "9d8348", "timestamp": 1771581542463, "location": "browser.api_status", "message": "status", "data": {"ready": false, "vnc": false}, "hypothesisId": "H1"}
+{"sessionId": "9d8348", "timestamp": 1771581545777, "location": "browser.api_start", "message": "start result", "data": {"ok": false, "error": "VNC \u4e0d\u53ef\u7528\uff1awebsockify \u542f\u52a8\u540e\u9000\u51fa\uff08\u7aef\u53e3 6080 \u53ef\u80fd\u88ab\u5360\u7528\uff09: WebSocket server settings:\n  - Listen on :6080\n  - No SSL/TLS support (no cert file)\nOpenening socket failed: [Errno 98] Address already in use\u3002\u8be6\u89c1 data/browser_vnc_diag.log"}, "hypothesisId": "H2"}
+{"sessionId": "9d8348", "timestamp": 1771581739306, "location": "browser.api_status", "message": "status", "data": {"ready": false, "vnc": false}, "hypothesisId": "H1"}
+{"sessionId": "9d8348", "timestamp": 1771581746496, "location": "browser.api_start", "message": "start result", "data": {"ok": true, "error": null}, "hypothesisId": "H2"}
+{"sessionId": "9d8348", "timestamp": 1771581746565, "location": "browser.api_status", "message": "status", "data": {"ready": true, "vnc": true}, "hypothesisId": "H1"}
+{"sessionId": "9d8348", "timestamp": 1771581786612, "location": "browser.api_start", "message": "start result", "data": {"ok": true, "error": null}, "hypothesisId": "H2"}
+{"sessionId": "9d8348", "timestamp": 1771581786644, "location": "browser.api_status", "message": "status", "data": {"ready": true, "vnc": true}, "hypothesisId": "H1"}
+{"sessionId": "9d8348", "timestamp": 1771582003869, "location": "browser.api_status", "message": "status", "data": {"ready": false, "vnc": false}, "hypothesisId": "H1"}
+{"sessionId": "9d8348", "timestamp": 1771582016525, "location": "browser.api_start", "message": "start result", "data": {"ok": true, "error": null}, "hypothesisId": "H2"}
+{"sessionId": "9d8348", "timestamp": 1771582016592, "location": "browser.api_status", "message": "status", "data": {"ready": true, "vnc": true}, "hypothesisId": "H1"}
+{"sessionId": "9d8348", "timestamp": 1771582277591, "location": "browser.api_status", "message": "status", "data": {"ready": true, "vnc": true}, "hypothesisId": "H1"}
+{"sessionId": "9d8348", "timestamp": 1771582309202, "location": "browser.api_status", "message": "status", "data": {"ready": true, "vnc": true}, "hypothesisId": "H1"}
+{"sessionId": "9d8348", "timestamp": 1771582310551, "location": "browser.api_start", "message": "start result", "data": {"ok": true, "error": null}, "hypothesisId": "H2"}
+{"sessionId": "9d8348", "timestamp": 1771582310575, "location": "browser.api_status", "message": "status", "data": {"ready": true, "vnc": true}, "hypothesisId": "H1"}
+{"sessionId": "9d8348", "timestamp": 1771582336138, "location": "browser.api_status", "message": "status", "data": {"ready": false, "vnc": false}, "hypothesisId": "H1"}
+{"sessionId": "9d8348", "timestamp": 1771582340950, "location": "browser.api_start", "message": "start result", "data": {"ok": true, "error": null}, "hypothesisId": "H2"}
+{"sessionId": "9d8348", "timestamp": 1771582340999, "location": "browser.api_status", "message": "status", "data": {"ready": true, "vnc": true}, "hypothesisId": "H1"}
+{"sessionId": "9d8348", "timestamp": 1771582400156, "location": "browser.api_status", "message": "status", "data": {"ready": true, "vnc": true}, "hypothesisId": "H1"}
+{"sessionId": "9d8348", "timestamp": 1771582415279, "location": "browser.api_status", "message": "status", "data": {"ready": true, "vnc": true}, "hypothesisId": "H1"}
+{"sessionId": "9d8348", "timestamp": 1771582852499, "location": "browser.api_status", "message": "status", "data": {"ready": false, "vnc": false}, "hypothesisId": "H1"}
+{"sessionId": "9d8348", "timestamp": 1771582856869, "location": "browser.api_start", "message": "start result", "data": {"ok": true, "error": null}, "hypothesisId": "H2"}
+{"sessionId": "9d8348", "timestamp": 1771582856910, "location": "browser.api_status", "message": "status", "data": {"ready": true, "vnc": true}, "hypothesisId": "H1"}
+{"sessionId": "9d8348", "timestamp": 1771582869944, "location": "browser.api_start", "message": "start result", "data": {"ok": true, "error": null}, "hypothesisId": "H2"}
+{"sessionId": "9d8348", "timestamp": 1771582869977, "location": "browser.api_status", "message": "status", "data": {"ready": true, "vnc": true}, "hypothesisId": "H1"}
+{"sessionId": "9d8348", "timestamp": 1771582895786, "location": "browser.api_start", "message": "start result", "data": {"ok": true, "error": null}, "hypothesisId": "H2"}
+{"sessionId": "9d8348", "timestamp": 1771582895849, "location": "browser.api_status", "message": "status", "data": {"ready": true, "vnc": true}, "hypothesisId": "H1"}
+{"sessionId": "9d8348", "timestamp": 1771583161422, "location": "browser.api_status", "message": "status", "data": {"ready": false, "vnc": false}, "hypothesisId": "H1"}
+{"sessionId": "9d8348", "timestamp": 1771583167024, "location": "browser.api_start", "message": "start result", "data": {"ok": true, "error": null}, "hypothesisId": "H2"}
+{"sessionId": "9d8348", "timestamp": 1771583167058, "location": "browser.api_status", "message": "status", "data": {"ready": true, "vnc": true}, "hypothesisId": "H1"}
+{"sessionId": "9d8348", "timestamp": 1771583177749, "location": "browser.api_start", "message": "start result", "data": {"ok": true, "error": null}, "hypothesisId": "H2"}
+{"sessionId": "9d8348", "timestamp": 1771583177782, "location": "browser.api_status", "message": "status", "data": {"ready": true, "vnc": true}, "hypothesisId": "H1"}
+{"sessionId": "9d8348", "timestamp": 1771583267679, "location": "browser.api_status", "message": "status", "data": {"ready": false, "vnc": false}, "hypothesisId": "H1"}
+{"sessionId": "9d8348", "timestamp": 1771583272600, "location": "browser.api_start", "message": "start result", "data": {"ok": true, "error": null}, "hypothesisId": "H2"}
+{"sessionId": "9d8348", "timestamp": 1771583272635, "location": "browser.api_status", "message": "status", "data": {"ready": true, "vnc": true}, "hypothesisId": "H1"}
+{"sessionId": "9d8348", "timestamp": 1771583763852, "location": "browser.api_status", "message": "status", "data": {"ready": false, "vnc": false}, "hypothesisId": "H1"}
+{"sessionId": "9d8348", "timestamp": 1771583768360, "location": "browser.api_start", "message": "start result", "data": {"ok": true, "error": null}, "hypothesisId": "H2"}
+{"sessionId": "9d8348", "timestamp": 1771583768409, "location": "browser.api_status", "message": "status", "data": {"ready": true, "vnc": true}, "hypothesisId": "H1"}
+{"sessionId": "9d8348", "timestamp": 1771584347964, "location": "browser.api_status", "message": "status", "data": {"ready": false, "vnc": false}, "hypothesisId": "H1"}
+{"sessionId": "9d8348", "timestamp": 1771584352863, "location": "browser.api_start", "message": "start result", "data": {"ok": true, "error": null}, "hypothesisId": "H2"}
+{"sessionId": "9d8348", "timestamp": 1771584352920, "location": "browser.api_status", "message": "status", "data": {"ready": true, "vnc": true}, "hypothesisId": "H1"}
+{"sessionId": "9d8348", "timestamp": 1771584407402, "location": "browser.api_start", "message": "start result", "data": {"ok": true, "error": null}, "hypothesisId": "H2"}
+{"sessionId": "9d8348", "timestamp": 1771584425640, "location": "browser.api_status", "message": "status", "data": {"ready": false, "vnc": false}, "hypothesisId": "H1"}
+{"sessionId": "9d8348", "timestamp": 1771584428100, "location": "browser.api_status", "message": "status", "data": {"ready": true, "vnc": true}, "hypothesisId": "H1"}
+{"sessionId": "9d8348", "timestamp": 1771584428101, "location": "browser.api_start", "message": "start result", "data": {"ok": true, "error": null}, "hypothesisId": "H2"}
+{"sessionId": "9d8348", "timestamp": 1771584428102, "location": "browser.api_start", "message": "start result", "data": {"ok": true, "error": null}, "hypothesisId": "H2"}
+{"sessionId": "9d8348", "timestamp": 1771584428186, "location": "browser.api_status", "message": "status", "data": {"ready": true, "vnc": true}, "hypothesisId": "H1"}
+{"sessionId": "9d8348", "timestamp": 1771584774987, "location": "browser.api_status", "message": "status", "data": {"ready": false, "vnc": false}, "hypothesisId": "H1"}
+{"sessionId": "9d8348", "timestamp": 1771584779284, "location": "browser.api_start", "message": "start result", "data": {"ok": true, "error": null}, "hypothesisId": "H2"}
+{"sessionId": "9d8348", "timestamp": 1771584779320, "location": "browser.api_status", "message": "status", "data": {"ready": true, "vnc": true}, "hypothesisId": "H1"}
+{"sessionId": "9d8348", "timestamp": 1771584979085, "location": "browser.api_status", "message": "status", "data": {"ready": false, "vnc": false}, "hypothesisId": "H1"}
+{"sessionId": "9d8348", "timestamp": 1771584983225, "location": "browser.api_start", "message": "start result", "data": {"ok": true, "error": null}, "hypothesisId": "H2"}
+{"sessionId": "9d8348", "timestamp": 1771584983249, "location": "browser.api_status", "message": "status", "data": {"ready": true, "vnc": true}, "hypothesisId": "H1"}
+{"sessionId": "9d8348", "timestamp": 1771585133798, "location": "browser.api_status", "message": "status", "data": {"ready": false, "vnc": false}, "hypothesisId": "H1"}
+{"sessionId": "9d8348", "timestamp": 1771585138078, "location": "browser.api_start", "message": "start result", "data": {"ok": true, "error": null}, "hypothesisId": "H2"}
+{"sessionId": "9d8348", "timestamp": 1771585138103, "location": "browser.api_status", "message": "status", "data": {"ready": true, "vnc": true}, "hypothesisId": "H1"}
+{"sessionId": "9d8348", "timestamp": 1771585512413, "location": "browser.api_status", "message": "status", "data": {"ready": false, "vnc": false}, "hypothesisId": "H1"}
+{"sessionId": "9d8348", "timestamp": 1771585516690, "location": "browser.api_start", "message": "start result", "data": {"ok": true, "error": null}, "hypothesisId": "H2"}
+{"sessionId": "9d8348", "timestamp": 1771585516722, "location": "browser.api_status", "message": "status", "data": {"ready": true, "vnc": true}, "hypothesisId": "H1"}
+{"sessionId": "9d8348", "timestamp": 1771585904468, "location": "browser.api_status", "message": "status", "data": {"ready": false, "vnc": false}, "hypothesisId": "H1"}
+{"sessionId": "9d8348", "timestamp": 1771585908459, "location": "browser.api_start", "message": "start result", "data": {"ok": true, "error": null}, "hypothesisId": "H2"}
+{"sessionId": "9d8348", "timestamp": 1771585908495, "location": "browser.api_status", "message": "status", "data": {"ready": true, "vnc": true}, "hypothesisId": "H1"}
+{"sessionId": "9d8348", "timestamp": 1771586217643, "location": "browser.api_status", "message": "status", "data": {"ready": false, "vnc": false}, "hypothesisId": "H1"}
+{"sessionId": "9d8348", "timestamp": 1771586226306, "location": "browser.api_start", "message": "start result", "data": {"ok": true, "error": null}, "hypothesisId": "H2"}
+{"sessionId": "9d8348", "timestamp": 1771586226341, "location": "browser.api_status", "message": "status", "data": {"ready": true, "vnc": true}, "hypothesisId": "H1"}
+{"sessionId": "9d8348", "timestamp": 1771586498704, "location": "browser.api_status", "message": "status", "data": {"ready": false, "vnc": false}, "hypothesisId": "H1"}
+{"sessionId": "9d8348", "timestamp": 1771586503380, "location": "browser.api_start", "message": "start result", "data": {"ok": true, "error": null}, "hypothesisId": "H2"}
+{"sessionId": "9d8348", "timestamp": 1771586503426, "location": "browser.api_status", "message": "status", "data": {"ready": true, "vnc": true}, "hypothesisId": "H1"}
+{"sessionId": "9d8348", "timestamp": 1771586722983, "location": "browser.api_status", "message": "status", "data": {"ready": false, "vnc": false}, "hypothesisId": "H1"}
+{"sessionId": "9d8348", "timestamp": 1771586727540, "location": "browser.api_start", "message": "start result", "data": {"ok": true, "error": null}, "hypothesisId": "H2"}
+{"sessionId": "9d8348", "timestamp": 1771586727578, "location": "browser.api_status", "message": "status", "data": {"ready": true, "vnc": true}, "hypothesisId": "H1"}
+{"sessionId": "9d8348", "timestamp": 1771586903983, "location": "browser.api_status", "message": "status", "data": {"ready": false, "vnc": false}, "hypothesisId": "H1"}
+{"sessionId": "9d8348", "timestamp": 1771586908935, "location": "browser.api_start", "message": "start result", "data": {"ok": true, "error": null}, "hypothesisId": "H2"}
+{"sessionId": "9d8348", "timestamp": 1771586908973, "location": "browser.api_status", "message": "status", "data": {"ready": true, "vnc": true}, "hypothesisId": "H1"}
+{"sessionId": "9d8348", "timestamp": 1771586936645, "location": "browser.api_status", "message": "status", "data": {"ready": false, "vnc": false}, "hypothesisId": "H1"}
+{"sessionId": "9d8348", "timestamp": 1771586946850, "location": "browser.api_start", "message": "start result", "data": {"ok": true, "error": null}, "hypothesisId": "H2"}
+{"sessionId": "9d8348", "timestamp": 1771586946893, "location": "browser.api_status", "message": "status", "data": {"ready": true, "vnc": true}, "hypothesisId": "H1"}
+{"sessionId": "9d8348", "timestamp": 1771587126037, "location": "browser.api_status", "message": "status", "data": {"ready": false, "vnc": false}, "hypothesisId": "H1"}
+{"sessionId": "9d8348", "timestamp": 1771587128062, "location": "browser.api_status", "message": "status", "data": {"ready": false, "vnc": false}, "hypothesisId": "H1"}
+{"sessionId": "9d8348", "timestamp": 1771587133334, "location": "browser.api_start", "message": "start result", "data": {"ok": true, "error": null}, "hypothesisId": "H2"}
+{"sessionId": "9d8348", "timestamp": 1771587133376, "location": "browser.api_status", "message": "status", "data": {"ready": true, "vnc": true}, "hypothesisId": "H1"}

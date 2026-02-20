@@ -2,7 +2,9 @@
 import re
 import uuid
 from pathlib import Path
+from urllib.parse import urlparse, urlunparse
 
+import requests
 from flask import Blueprint, render_template, request, jsonify, Response, stream_with_context, redirect, url_for, current_app
 from services.llm import get_available_models, chat_completion, chat_completion_with_tools, chat_completion_stream, summarize_conversation_title
 
@@ -33,6 +35,31 @@ def _inject_attachment_paths(messages, attachment_paths):
     return out
 
 
+def _trim_previous_long_assistant_if_new_topic(messages, use_utcp_tools):
+    """
+    若上一轮为长任务（assistant 含 tool_steps 且内容很长）且本轮用户消息很短（如「你好」），
+    则对上一轮助手内容做温和截断并加提示，避免模型误以为要继续执行上一轮任务。
+    """
+    if not use_utcp_tools or not messages or len(messages) < 2:
+        return messages
+    last = messages[-1]
+    prev = messages[-2]
+    if last.get("role") != "user" or prev.get("role") != "assistant":
+        return messages
+    prev_content = (prev.get("content") or "").strip()
+    prev_steps = prev.get("tool_steps") or []
+    new_user_content = (last.get("content") or "").strip()
+    if len(prev_steps) < 3 or len(prev_content) <= 2500 or len(new_user_content) >= 40:
+        return messages
+    max_keep = 2000
+    suffix = "\n\n[上一轮为自动化任务执行结果，已截断。请根据用户最新消息独立回复。]"
+    truncated = (prev_content[:max_keep] + suffix) if len(prev_content) > max_keep else prev_content
+    out = list(messages)
+    out[-2] = dict(prev)
+    out[-2]["content"] = truncated
+    return out
+
+
 def _model_label(provider_id, model):
     """根据 provider_id 与 model 返回展示用「服务商 - 模型」"""
     for m in get_available_models():
@@ -49,6 +76,60 @@ from services.conversation_store import (
 import json
 
 chat_bp = Blueprint("chat", __name__)
+
+
+def _web_preview_proxy_allowed_host(url_str: str) -> bool:
+    """仅允许 localhost/127.0.0.1 或当前请求 host，避免代理任意外网站。"""
+    try:
+        parsed = urlparse(url_str)
+        if parsed.scheme not in ("http", "https"):
+            return False
+        host = (parsed.netloc or "").split(":")[0].lower()
+        if host in ("127.0.0.1", "localhost", "::1"):
+            return True
+        req_host = (request.host or "").split(":")[0].lower()
+        if host == req_host:
+            return True
+        return False
+    except Exception:
+        return False
+
+
+@chat_bp.route("/api/web-preview-proxy", methods=["GET"])
+def web_preview_proxy():
+    """
+    代理 Web 预览 iframe 的请求：后端拉取目标 URL，去掉禁止嵌入的响应头并注入 <base>，
+    使内置预览能显示本地或同源的自动化页面（避免 X-Frame-Options、混合内容导致空白）。
+    """
+    url_str = (request.args.get("url") or "").strip()
+    if not url_str.startswith("http://") and not url_str.startswith("https://"):
+        return Response("url 须为 http 或 https", status=400)
+    if not _web_preview_proxy_allowed_host(url_str):
+        return Response("仅支持 localhost / 127.0.0.1 或当前站点", status=403)
+    try:
+        r = requests.get(url_str, timeout=15, stream=False, headers={"User-Agent": "Trial-WebPreview/1.0"})
+        r.raise_for_status()
+        body = r.content
+        content_type = (r.headers.get("Content-Type") or "").split(";")[0].strip().lower()
+        if content_type == "text/html" and body:
+            try:
+                text = body.decode("utf-8", errors="replace")
+                base_url = url_str if url_str.endswith("/") else (url_str.rsplit("/", 1)[0] + "/")
+                base_tag = '<base href="' + base_url.replace('"', "&quot;") + '">'
+                head_match = re.search(r"<head[^>]*>", text, re.IGNORECASE)
+                if head_match:
+                    text = text[: head_match.end()] + base_tag + text[head_match.end() :]
+                else:
+                    text = base_tag + text
+                body = text.encode("utf-8")
+            except Exception:
+                pass
+        resp = Response(body, status=200)
+        resp.headers["Content-Type"] = r.headers.get("Content-Type") or "text/html; charset=utf-8"
+        resp.headers["Cache-Control"] = "no-store"
+        return resp
+    except requests.RequestException as e:
+        return Response("代理请求失败: " + str(e), status=502)
 
 
 @chat_bp.route("/utcp")
@@ -69,11 +150,16 @@ def api_models():
     """获取可用模型列表及全局配置（UTCP 插件、自动化工作流开关、最大轮次）"""
     models = get_available_models()
     cfg = current_app.config["CONFIG_LOADER"]()
+    max_rounds = int(cfg.get("utcp_max_tool_rounds", 50))
+    if cfg.get("utcp_unlimited_rounds"):
+        max_rounds = 9999
     return jsonify({
         "providers": models,
         "utcp_plugin_enabled": cfg.get("utcp_plugin_enabled", True),
         "utcp_tools_enabled": cfg.get("utcp_tools_enabled", True),
-        "utcp_max_tool_rounds": int(cfg.get("utcp_max_tool_rounds", 50)),
+        "utcp_max_tool_rounds": max_rounds,
+        "utcp_unlimited_rounds": bool(cfg.get("utcp_unlimited_rounds", False)),
+        "web_preview_enabled": bool(cfg.get("web_preview_enabled", True)),
     })
 
 
@@ -178,8 +264,11 @@ def api_chat():
         return jsonify({"error": "缺少 provider_id、model 或 messages"}), 400
     messages = _inject_system_prompt(messages, use_utcp_tools)
     messages = _inject_attachment_paths(messages, attachment_paths)
+    messages = _trim_previous_long_assistant_if_new_topic(messages, use_utcp_tools)
     cfg = current_app.config["CONFIG_LOADER"]()
     max_tool_rounds = int(cfg.get("utcp_max_tool_rounds", 50))
+    if cfg.get("utcp_unlimited_rounds"):
+        max_tool_rounds = 9999
     try:
         if use_utcp_tools:
             content = chat_completion_with_tools(
@@ -235,20 +324,24 @@ def api_chat_stream():
         return jsonify({"error": "缺少 provider_id、model 或 messages"}), 400
     messages = _inject_system_prompt(messages, use_utcp_tools)
     messages = _inject_attachment_paths(messages, attachment_paths)
+    messages = _trim_previous_long_assistant_if_new_topic(messages, use_utcp_tools)
     cfg = current_app.config["CONFIG_LOADER"]()
     max_tool_rounds = int(cfg.get("utcp_max_tool_rounds", 50))
+    if cfg.get("utcp_unlimited_rounds"):
+        max_tool_rounds = 9999
 
     last_user = messages[-1].get("content", "") if messages else ""
     model_label = _model_label(provider_id, model)
 
-    def _save_partial(cid, content_parts, steps):
-        """流式过程中将当前进度写入对话，便于刷新/切换后恢复（用户消息已在开始时写入，此处只追加或覆盖助手部分）"""
+    def _save_partial(cid, content_parts, steps, plan_content=None):
+        """流式过程中将当前进度写入对话（含计划阶段），便于刷新/切换后恢复"""
         if not cid:
             return
         conv = get_conversation(cid)
         if not conv:
             return
-        partial_content = "".join(content_parts)
+        raw = "".join(content_parts)
+        partial_content = ("【当前情况与计划】\n\n" + plan_content + "\n\n---\n\n" + raw) if plan_content else raw
         assistant_msg = {"role": "assistant", "content": partial_content, "model_label": model_label}
         if steps:
             assistant_msg["tool_steps"] = list(steps)
@@ -261,23 +354,22 @@ def api_chat_stream():
 
     def generate():
         full_content = []
-        tool_steps = []  # 收集本轮工具调用，用于持久化 [{name, arguments_preview, result_summary, result_full}]
-        save_interval = 0  # 每累计若干次事件就写库一次，便于刷新后看到进度
+        tool_steps = []  # 收集本轮工具调用，用于持久化
+        plan_content = ""  # 第一轮后的「当前情况与计划」，用于与最终内容合并
+        save_interval = 0
         cid = conversation_id
-        # 第一轮开始就写入对话历史：新对话立即创建并下发 id，已有对话立即追加用户消息
-        if not conversation_id:
+        if not cid:
             conv = create_conversation(
                 title=(last_user[:50] if last_user else "新对话"),
                 messages=[{"role": "user", "content": last_user}],
             )
             cid = conv["id"]
-            conversation_id = cid
             yield f"data: {json.dumps({'conversation_id': cid}, ensure_ascii=False)}\n\n"
         else:
-            conv = get_conversation(conversation_id)
+            conv = get_conversation(cid)
             if conv:
                 new_msgs = conv.get("messages", []) + [{"role": "user", "content": last_user}]
-                update_conversation(conversation_id, messages=new_msgs)
+                update_conversation(cid, messages=new_msgs)
         try:
             for chunk in chat_completion_stream(
                 provider_id=provider_id, model=model, messages=messages,
@@ -288,6 +380,9 @@ def api_chat_stream():
                     ev = chunk
                     if ev.get("type") == "content":
                         full_content.append(ev.get("content") or "")
+                        save_interval += 1
+                    elif ev.get("type") == "plan":
+                        plan_content = ev.get("content") or ""
                         save_interval += 1
                     elif ev.get("type") == "tool_call":
                         tool_steps.append({
@@ -308,16 +403,16 @@ def api_chat_stream():
                         save_interval += 1
                     if save_interval >= 6:
                         save_interval = 0
-                        _save_partial(conversation_id, full_content, tool_steps)
+                        _save_partial(cid, full_content, tool_steps, plan_content)
                     yield f"data: {json.dumps(ev, ensure_ascii=False)}\n\n"
                 else:
                     full_content.append(chunk if isinstance(chunk, str) else "")
                     save_interval += 1
                     if save_interval >= 6:
                         save_interval = 0
-                        _save_partial(conversation_id, full_content, tool_steps)
+                        _save_partial(cid, full_content, tool_steps)
                     yield f"data: {json.dumps({'content': chunk}, ensure_ascii=False)}\n\n"
-            content = "".join(full_content)
+            content = ("【当前情况与计划】\n\n" + plan_content + "\n\n---\n\n" + "".join(full_content)) if plan_content else "".join(full_content)
             assistant_msg = {"role": "assistant", "content": content, "model_label": model_label}
             if tool_steps:
                 assistant_msg["tool_steps"] = tool_steps

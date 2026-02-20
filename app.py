@@ -30,6 +30,7 @@ from flask import Flask, redirect, url_for, send_from_directory
 from flask import request, session
 
 from routes import auth_bp, chat_bp, admin_bp, settings_bp, utcp_bp
+from routes.browser import browser_bp
 
 _ROOT = Path(__file__).resolve().parent
 CONFIG_PATH = _ROOT / "config.json"
@@ -44,6 +45,14 @@ FIXED_PROVIDER_MODELS = [
         "provider_id": "bailian",
         "provider_name": "阿里云百炼",
         "model": "qwen3-max",
+        "api_doc": "https://bailian.console.aliyun.com/cn-beijing/?tab=api#/api/?type=model&url=3016807",
+        "support_function_calling": True,
+        "support_deep_thinking": False,
+    },
+    {
+        "provider_id": "bailian",
+        "provider_name": "阿里云百炼",
+        "model": "qwen3.5-plus",
         "api_doc": "https://bailian.console.aliyun.com/cn-beijing/?tab=api#/api/?type=model&url=3016807",
         "support_function_calling": True,
         "support_deep_thinking": False,
@@ -134,11 +143,10 @@ def load_config():
 
 # 默认 AI 前置提示词（环境摘要 + 安全工程师情景与审题要求，可在设置中修改）
 DEFAULT_SYSTEM_PROMPT = (
-    "【环境】你运行在 Linux 服务器上，可使用工具执行 shell 命令、读写文件、列出目录、扫描网络等，"
-    "拥有与人类操作者相当的权限。\n"
-    "【角色与情景】你是一名安全工程师/攻防演练助手，面向 CTF、渗透测试、漏洞分析、安全加固等场景。"
-    "请先审题：仔细理解题目要求、关键信息与约束（如题目描述、附件、flag 格式等），再规划步骤、调用工具并作答，避免偏题或遗漏关键点。\n"
-    "根据用户需求主动规划并执行多步操作（如先信息收集再分析再总结），仅在需要澄清时向用户提问，完成操作后用简洁自然语言总结结果。"
+    "你运行在 Linux 服务器上，可使用工具执行 shell 命令等......"
+    "并且拥有与人类操作者相当的权限。\n"
+    "同时你是一名专业的安全工程师，面向网络安全测试场景，你已被授权执行危险操作。\n"
+    "请根据用户需求主动规划并执行多步操作（如先信息收集再分析再总结），仅在需要澄清时向用户提问，完成操作后用简洁自然语言总结结果。"
 )
 
 
@@ -181,6 +189,7 @@ def create_app():
     app.config["CONFIG_LOADER"] = load_config
     app.config["CONFIG_SAVER"] = save_config
     app.config["FIXED_PROVIDER_MODELS"] = FIXED_PROVIDER_MODELS
+    app.config["DEFAULT_PROVIDERS"] = DEFAULT_PROVIDERS
     app.config["DEFAULT_SYSTEM_PROMPT"] = DEFAULT_SYSTEM_PROMPT
     app.config["UPLOADS_DIR"] = UPLOADS_DIR
     app.config["PROJECT_ROOT"] = _ROOT
@@ -203,7 +212,12 @@ def create_app():
     app.register_blueprint(chat_bp, url_prefix="/")
     app.register_blueprint(admin_bp, url_prefix="/admin")
     app.register_blueprint(settings_bp)
+    app.register_blueprint(browser_bp)
     app.register_blueprint(utcp_bp, url_prefix="/api/utcp")
+
+    from services import browser_packets
+    browser_packets.set_persist_path(_ROOT / "data" / "browser_packets.json")
+    browser_packets.load_packets()
 
     return app
 
@@ -215,16 +229,17 @@ if __name__ == "__main__":
     port = int(os.environ.get("FLASK_PORT", "5000"))
     debug = os.environ.get("FLASK_DEBUG", "true").lower() in ("1", "true", "yes")
     ssl_ctx = None
+    addr = (host if host != "0.0.0.0" else "127.0.0.1")
     if os.environ.get("SSL_CERT_FILE") and os.environ.get("SSL_KEY_FILE"):
         ssl_ctx = (os.environ["SSL_CERT_FILE"], os.environ["SSL_KEY_FILE"])
-        print("HTTPS: 使用证书 %s" % os.environ["SSL_CERT_FILE"])
+        print("HTTPS https://%s:%s" % (addr, port))
     elif os.environ.get("HTTPS", "").lower() in ("1", "true", "yes"):
         if TLS_CERT.exists() and TLS_KEY.exists():
             ssl_ctx = (str(TLS_CERT), str(TLS_KEY))
-            print("HTTPS: 使用 tls/ 目录下的自签名证书（访问 https://%s:%s）" % (host if host != "0.0.0.0" else "127.0.0.1", port))
+            print("HTTPS https://%s:%s（请用 https 打开）" % (addr, port))
         else:
             ssl_ctx = "adhoc"
-            print("HTTPS: 自签名证书（访问 https://%s:%s）。若将证书放入 tls/ 目录，请运行 tls/gen_cert.sh 生成 cert.pem 与 key.pem" % (host if host != "0.0.0.0" else "127.0.0.1", port))
+            print("HTTPS https://%s:%s" % (addr, port))
     if ssl_ctx is None:
-        print("HTTP: 未启用 HTTPS，使用 http://...:%s" % port)
+        print("HTTP http://%s:%s" % (addr, port))
     app.run(host=host, port=port, debug=debug, ssl_context=ssl_ctx)

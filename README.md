@@ -31,8 +31,14 @@ conda activate Trial
 ## 安装与运行
 
 ```bash
+# Conda环境
 conda activate Trial
 pip install -r requirements.txt
+# VNC环境
+apt update
+apt install -y xvfb x11vnc websockify fluxbox tigervnc-standalone-server
+
+# 运行
 python app.py
 ```
 

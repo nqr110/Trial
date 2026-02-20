@@ -15,23 +15,27 @@ def index():
 
 @settings_bp.route("/config")
 def config():
-    """API信息：固定服务商 API 配置"""
+    """API信息：按服务商合并为一块，仅配置 API Key；API Base 不可修改"""
     load = current_app.config["CONFIG_LOADER"]
     cfg = load()
     fixed = current_app.config.get("FIXED_PROVIDER_MODELS") or []
     saved = {p["id"]: p for p in (cfg.get("providers") or []) if isinstance(p, dict) and p.get("id")}
-    providers = []
+    default_bases = {d["id"]: d.get("api_base") or "" for d in (current_app.config.get("DEFAULT_PROVIDERS") or [])}
+    by_id = {}
     for m in fixed:
         pid = m["provider_id"]
         s = saved.get(pid) or {}
-        providers.append({
-            "provider_id": pid,
-            "provider_name": m["provider_name"],
-            "model": m["model"],
-            "api_doc": m.get("api_doc", ""),
-            "api_base": s.get("api_base") or "",
-            "api_key": s.get("api_key") or "",
-        })
+        if pid not in by_id:
+            by_id[pid] = {
+                "provider_id": pid,
+                "provider_name": m["provider_name"],
+                "models": [],
+                "api_doc": m.get("api_doc", ""),
+                "api_base": s.get("api_base") or default_bases.get(pid) or "",
+                "api_key": s.get("api_key") or "",
+            }
+        by_id[pid]["models"].append(m["model"])
+    providers = list(by_id.values())
     return render_template("settings_config.html", providers=providers)
 
 
@@ -43,6 +47,8 @@ def global_config():
     utcp_enabled = cfg.get("utcp_plugin_enabled", True)
     utcp_tools_enabled = cfg.get("utcp_tools_enabled", True)
     utcp_max_tool_rounds = int(cfg.get("utcp_max_tool_rounds", 50))
+    utcp_unlimited_rounds = bool(cfg.get("utcp_unlimited_rounds", False))
+    web_preview_enabled = bool(cfg.get("web_preview_enabled", True))
     system_prompt = cfg.get("system_prompt", "")
     safe_mode = bool(cfg.get("safe_mode", False))
     ai_default_language = cfg.get("ai_default_language") or "zh"
@@ -52,6 +58,8 @@ def global_config():
         utcp_plugin_enabled=utcp_enabled,
         utcp_tools_enabled=utcp_tools_enabled,
         utcp_max_tool_rounds=utcp_max_tool_rounds,
+        utcp_unlimited_rounds=utcp_unlimited_rounds,
+        web_preview_enabled=web_preview_enabled,
         system_prompt=system_prompt,
         default_system_prompt=DEFAULT_SYSTEM_PROMPT,
         safe_mode=safe_mode,
@@ -119,6 +127,7 @@ def global_utcp_tools():
         return jsonify({
             "utcp_tools_enabled": cfg.get("utcp_tools_enabled", True),
             "utcp_max_tool_rounds": int(cfg.get("utcp_max_tool_rounds", 50)),
+            "utcp_unlimited_rounds": bool(cfg.get("utcp_unlimited_rounds", False)),
         })
     data = request.get_json() or {}
     cfg = load()
@@ -130,11 +139,14 @@ def global_utcp_tools():
             cfg["utcp_max_tool_rounds"] = max(1, min(200, n))
         except (TypeError, ValueError):
             pass
+    if "utcp_unlimited_rounds" in data:
+        cfg["utcp_unlimited_rounds"] = bool(data["utcp_unlimited_rounds"])
     save(cfg)
     return jsonify({
         "ok": True,
         "utcp_tools_enabled": cfg.get("utcp_tools_enabled", True),
         "utcp_max_tool_rounds": int(cfg.get("utcp_max_tool_rounds", 50)),
+        "utcp_unlimited_rounds": bool(cfg.get("utcp_unlimited_rounds", False)),
     })
 
 
@@ -151,6 +163,21 @@ def global_safe_mode():
     cfg["safe_mode"] = bool(data.get("safe_mode", False))
     save(cfg)
     return jsonify({"ok": True, "safe_mode": cfg["safe_mode"]})
+
+
+@settings_bp.route("/global/api/web-preview", methods=["GET", "POST"])
+def global_web_preview():
+    """GET 返回是否启用自动化任务中的 Web 页面预览；POST 设置（body: {"web_preview_enabled": true/false}）"""
+    load = current_app.config["CONFIG_LOADER"]
+    save = current_app.config["CONFIG_SAVER"]
+    if request.method == "GET":
+        cfg = load()
+        return jsonify({"web_preview_enabled": bool(cfg.get("web_preview_enabled", True))})
+    data = request.get_json() or {}
+    cfg = load()
+    cfg["web_preview_enabled"] = bool(data.get("web_preview_enabled", True))
+    save(cfg)
+    return jsonify({"ok": True, "web_preview_enabled": cfg["web_preview_enabled"]})
 
 
 @settings_bp.route("/global/api/ai-default-language", methods=["GET", "POST"])

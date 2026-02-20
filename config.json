@@ -7,6 +7,12 @@
       "api_key": "123"
     },
     {
+      "id": "bailian",
+      "name": "阿里云百炼",
+      "api_base": "https://dashscope.aliyuncs.com/compatible-mode",
+      "api_key": "123"
+    },
+    {
       "id": "deepseek",
       "name": "深度求索",
       "api_base": "https://api.deepseek.com",

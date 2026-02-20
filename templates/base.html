@@ -39,6 +39,7 @@
     <nav class="nav">
         <a href="{{ url_for('chat.index') }}" class="nav-btn {% if request.endpoint == 'chat.index' %}active{% endif %}">对话</a>
         <a href="{{ url_for('settings.config') }}" class="nav-btn {% if request.endpoint and request.endpoint.startswith('settings.') %}active{% endif %}">设置</a>
+        <a href="{{ url_for('browser.recorder') }}" class="nav-btn {% if request.endpoint == 'browser.recorder' %}active{% endif %}">记录器</a>
         <span id="navChatStatus" class="nav-chat-status" style="display: none;" aria-live="polite" title="点击可中止当前回复">对话进行中</span>
         <span class="nav-spacer"></span>
         <a class="logout" href="{{ url_for('auth.logout') }}">退出</a>

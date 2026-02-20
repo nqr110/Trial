@@ -32,12 +32,13 @@ def get_config():
 
 @admin_bp.route("/api/config", methods=["POST"])
 def save_config():
-    """保存配置：仅固定服务商的 api_base、api_key；api_key 留空则不覆盖已保存值"""
+    """保存配置：仅固定服务商的 api_key；api_base 不可修改，沿用已保存或默认值"""
     data = request.get_json() or {}
     load = current_app.config["CONFIG_LOADER"]
     save = current_app.config["CONFIG_SAVER"]
     cfg = load()
     old_providers = {p["id"]: p for p in (cfg.get("providers") or []) if isinstance(p, dict) and p.get("id")}
+    default_providers = {d["id"]: d for d in (current_app.config.get("DEFAULT_PROVIDERS") or [])}
     fixed_ids = {m["provider_id"] for m in (current_app.config.get("FIXED_PROVIDER_MODELS") or [])}
     new_list = []
     for p in data.get("providers") or []:
@@ -45,12 +46,13 @@ def save_config():
             continue
         pid = p.get("id")
         old = old_providers.get(pid) or {}
+        default_one = default_providers.get(pid) or {}
         fixed_list = current_app.config.get("FIXED_PROVIDER_MODELS") or []
         pname = next((x["provider_name"] for x in fixed_list if x["provider_id"] == pid), pid)
         new_list.append({
             "id": pid,
             "name": pname,
-            "api_base": (p.get("api_base") or "").strip(),
+            "api_base": (old.get("api_base") or "").strip() or (default_one.get("api_base") or "").strip(),
             "api_key": (p.get("api_key") or "").strip() or old.get("api_key") or "",
         })
     cfg["providers"] = new_list

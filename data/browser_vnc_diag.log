@@ -1,0 +1,14 @@
+[2026-02-20 04:55:23] VNC 启动失败: Xvfb 启动后退出: (EE) 
+Fatal server error:
+(EE) Server is already active for display 99
+	If this server is no longer running, remove /tmp/.X99-lock
+	and start again.
+(EE)
+[2026-02-20 04:57:25] VNC 启动失败: x11vnc 启动后退出: 20/02/2026 04:57:24 passing arg to libvncserver: -rfbport
+20/02/2026 04:57:24 passing arg to libvncserver: 5900
+20/02/2026 04:57:24 x11vnc version: 0.9.17 lastmod: 2025-04-11  pid: 36367
+20/02/2026 04
+[2026-02-20 04:59:05] VNC 启动失败: websockify 启动后退出（端口 6080 可能被占用）: WebSocket server settings:
+  - Listen on :6080
+  - No SSL/TLS support (no cert file)
+Openening socket failed: [Errno 98] Address already in use

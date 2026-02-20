@@ -153,10 +153,9 @@ def summarize_conversation_title(provider_id: str, model: str, user_content: str
 
 def chat_completion_with_tools(provider_id: str, model: str, messages: list, max_tool_rounds: int = 50, use_deep_thinking: bool = False) -> str:
     """
-    带 UTCP 工具调用的对话（自动化工作流）：向模型传入工具定义，若模型返回 tool_calls 则执行并继续请求，
-    直到模型返回纯文本或达到最大轮数。返回最终助手回复内容。
-    max_tool_rounds 默认 50，支持多步自动化。若服务商 API 不支持 tools 则回退为普通对话。
-    use_deep_thinking：是否启用深度思考（如 DeepSeek 的 reasoning 模式）。
+    带 UTCP 工具调用的对话（自动化工作流，仿 Cursor）：
+    1) 多轮 function call 探索；2) 第一轮执行完后请求「当前情况与计划」；
+    3) 继续执行任务；4) 返回综合信息（计划 + 执行结果）。
     """
     from utcp.tools_def import get_openai_tools
     from utcp.tool_executor import execute_tool
@@ -164,12 +163,11 @@ def chat_completion_with_tools(provider_id: str, model: str, messages: list, max
     api_base, api_key = _get_provider_config(provider_id)
     tools = get_openai_tools()
     current_messages = list(messages)
-    use_tools = True  # 若某次带 tools 的请求失败，则不再传 tools
-    extra_body = {}
-    if use_deep_thinking:
-        # DeepSeek 官方文档：thinking 参数为 {"type": "enabled"}
-        extra_body = {"thinking": {"type": "enabled"}}
+    use_tools = True
+    extra_body = {"thinking": {"type": "enabled"}} if use_deep_thinking else {}
     shell_judge = make_shell_judge_callback(provider_id, model)
+    plan_text = None
+    plan_done = False
 
     for _ in range(max_tool_rounds):
         try:
@@ -193,11 +191,11 @@ def chat_completion_with_tools(provider_id: str, model: str, messages: list, max
         content = (msg.get("content") or "").strip()
 
         if not tool_calls:
+            if plan_text:
+                return "【当前情况与计划】\n\n" + plan_text + "\n\n---\n\n【执行结果】\n\n" + (content or "")
             return content or ""
 
-        # 追加助手消息（含 tool_calls）
         current_messages.append(msg)
-        # 执行每个 tool_call 并追加 tool 消息
         cfg = _get_config()
         safe_mode = bool(cfg.get("safe_mode", False))
         project_root = current_app.config.get("PROJECT_ROOT")
@@ -219,6 +217,17 @@ def chat_completion_with_tools(provider_id: str, model: str, messages: list, max
             )
             current_messages.append({"role": "tool", "tool_call_id": tid, "content": result})
 
+        if not plan_done:
+            plan_done = True
+            try:
+                plan_text = _request_plan_and_append_messages(
+                    api_base, api_key, model, current_messages, extra_body
+                )
+            except Exception:
+                current_messages.append({"role": "user", "content": _PLAN_CONTINUE_USER})
+
+    if plan_text:
+        return "【当前情况与计划】\n\n" + plan_text + "\n\n---\n\n【执行结果】\n\n" + (content or "")
     return content or ""
 
 
@@ -251,11 +260,40 @@ def _tool_result_summary(result_json: str, max_len: int = 280) -> str:
         return (result_json or "")[:max_len] + ("…" if len(str(result_json or "")) > max_len else "")
 
 
+# 自动化工作流中「计划阶段」的提示：要求模型先汇报情况与计划，不调用工具
+_PLAN_REQUEST_USER = (
+    "请用 2～4 句话向用户说明：根据目前已获取的信息，当前情况是什么、以及你接下来的执行计划。"
+    "仅输出这段说明，不要调用任何工具。"
+)
+_PLAN_CONTINUE_USER = "请按计划继续执行。"
+
+
+def _request_plan_and_append_messages(api_base, api_key, model, current_messages, extra_body) -> str:
+    """请求一次仅文本回复（不传 tools），得到「当前情况与计划」；并会把助手回复与继续执行的 user 消息追加到 current_messages。"""
+    plan_messages = current_messages + [
+        {"role": "user", "content": _PLAN_REQUEST_USER},
+    ]
+    resp = _openai_style_chat(
+        api_base, api_key, model, plan_messages, stream=False,
+        tools=None,
+        extra_body=extra_body if extra_body else None,
+    )
+    choice = (resp.get("choices") or [{}])[0]
+    msg = choice.get("message") or {}
+    plan_content = (msg.get("content") or "").strip()
+    current_messages.append({"role": "user", "content": _PLAN_REQUEST_USER})
+    current_messages.append(msg)
+    current_messages.append({"role": "user", "content": _PLAN_CONTINUE_USER})
+    return plan_content
+
+
 def chat_completion_stream_with_tool_events(provider_id: str, model: str, messages: list, max_tool_rounds: int = 50, use_deep_thinking: bool = False):
     """
-    带 UTCP 工具的工作流流式调用：每轮中先 yield tool_call 事件，执行工具后 yield tool_result 事件，
-    最后若无 tool_calls 则 yield content 事件（最终回复的逐块内容）。
-    前端可据此展示「操作步骤」子信息栏。
+    带 UTCP 工具的工作流流式调用（仿 Cursor）：
+    1) 先进行多轮 function call（探索/收集信息）；
+    2) 第一轮工具执行完成后，请求模型输出「当前情况与计划」并 yield plan 事件；
+    3) 然后继续执行任务（后续 tool_call / tool_result）；
+    4) 结束时 yield 最终 content（综合信息）。
     """
     from utcp.tools_def import get_openai_tools
     from utcp.tool_executor import execute_tool
@@ -265,6 +303,7 @@ def chat_completion_stream_with_tool_events(provider_id: str, model: str, messag
     current_messages = list(messages)
     use_tools = True
     extra_body = {"thinking": {"type": "enabled"}} if use_deep_thinking else {}
+    plan_already_shown = False
 
     for _ in range(max_tool_rounds):
         try:
@@ -311,6 +350,10 @@ def chat_completion_stream_with_tool_events(provider_id: str, model: str, messag
                 args = {}
             args_preview = json.dumps(args, ensure_ascii=False)[:120]
             yield {"type": "tool_call", "tool_call_id": tid, "name": name, "arguments": args, "arguments_preview": args_preview}
+            if name == "preview_web_page":
+                url = (args.get("url") or "").strip()
+                if url.startswith("http://") or url.startswith("https://"):
+                    yield {"type": "web_view", "url": url}
             result = execute_tool(
                 name, args,
                 llm_judge_callback=shell_judge if name == "run_shell" else None,
@@ -319,6 +362,19 @@ def chat_completion_stream_with_tool_events(provider_id: str, model: str, messag
             summary = _tool_result_summary(result)
             yield {"type": "tool_result", "tool_call_id": tid, "name": name, "result_summary": summary, "result_full": result[:2000] if len(result) > 2000 else result}
             current_messages.append({"role": "tool", "tool_call_id": tid, "content": result})
+
+        # 第一轮工具执行完成后：请求「当前情况与计划」并推给用户，再继续执行
+        if not plan_already_shown:
+            plan_already_shown = True
+            try:
+                plan_content = _request_plan_and_append_messages(
+                    api_base, api_key, model, current_messages, extra_body
+                )
+                if plan_content:
+                    yield {"type": "plan", "content": plan_content}
+            except Exception:
+                # 计划请求失败则直接继续下一轮，不阻塞
+                current_messages.append({"role": "user", "content": _PLAN_CONTINUE_USER})
 
     yield {"type": "content", "content": ""}
 

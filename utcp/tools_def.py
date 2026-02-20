@@ -144,4 +144,58 @@ def get_openai_tools():
                 },
             },
         },
+        {
+            "type": "function",
+            "function": {
+                "name": "preview_web_page",
+                "description": "在对话页的实时预览区打开一个网页，供用户查看当前自动化任务涉及的页面。当任务涉及浏览器访问、本地启动的 Web 服务、或需要用户查看某 URL 时调用此工具，便于用户观察任务进度。",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "url": {
+                            "type": "string",
+                            "description": "要预览的完整 URL，例如 http://127.0.0.1:8080、https://example.com。必须是 http 或 https。",
+                        },
+                    },
+                    "required": ["url"],
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "list_browser_packets",
+                "description": "列出记录器已录制的 HTTP 数据包（用户将浏览器 HTTP 代理设为记录器页显示的 127.0.0.1:端口 后访问网页的流量会被记录）。可用于分析用户浏览行为、抓包结果。",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "url_contains": {
+                            "type": "string",
+                            "description": "可选。只返回 URL 中包含该字符串的录包。",
+                        },
+                        "limit": {
+                            "type": "integer",
+                            "description": "可选。返回最多几条，默认 50，最大 200。",
+                        },
+                    },
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "get_browser_packet",
+                "description": "根据 id 获取记录器某条录包的详情（请求头、请求体预览、响应头、响应体预览）。id 来自 list_browser_packets。",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "packet_id": {
+                            "type": "string",
+                            "description": "录包 id。",
+                        },
+                    },
+                    "required": ["packet_id"],
+                },
+            },
+        },
     ]
