@@ -48,10 +48,17 @@ def add_packet(method: str, url: str, request_headers: dict, request_body, respo
     return pid
 
 
-def list_packets(url_contains: str = None, limit: int = 200):
-    """返回录包列表，可选按 URL 过滤，按时间倒序，最多 limit 条。"""
+def list_packets(url_contains: str = None, url_contains_any: list = None, limit: int = 200):
+    """返回录包列表，可选按 URL 过滤（单个或任意多个匹配），按时间倒序，最多 limit 条。"""
     out = list(_PACKETS)
-    if url_contains and url_contains.strip():
+    if url_contains_any and len(url_contains_any) > 0:
+        patterns = [str(s).strip().lower() for s in url_contains_any if s and str(s).strip()]
+        if patterns:
+            def match_any(url):
+                u = (url or "").lower()
+                return any(q in u for q in patterns)
+            out = [p for p in out if match_any(p.get("url") or "")]
+    elif url_contains and url_contains.strip():
         q = url_contains.strip().lower()
         out = [p for p in out if q in (p.get("url") or "").lower()]
     out.reverse()

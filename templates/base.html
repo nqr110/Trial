@@ -25,6 +25,7 @@
         .nav-spacer { flex: 1; }
 .nav-chat-status { padding: 0.35rem 0.65rem; border-radius: 6px; font-size: 0.8rem; background: #dbeafe; color: #1d4ed8; margin-left: 0.25rem; cursor: pointer; user-select: none; }
 .nav-chat-status:hover { background: #93c5fd; color: #1e40af; }
+        .nav-chat-hint { font-size: 0.75rem; color: var(--muted); margin-left: 0.5rem; white-space: nowrap; }
         .nav .logout { padding: 0.5rem 1rem; border-radius: 8px; font-size: 0.875rem; color: var(--muted); background: transparent; border: 1px solid transparent; cursor: pointer; transition: background 0.2s, color 0.2s; text-decoration: none; }
         .nav .logout:hover { background: #fef2f2; color: #dc2626; }
         main { animation: fadeIn 0.25s ease; }
@@ -38,9 +39,10 @@
     {% if session.get('logged_in') %}
     <nav class="nav">
         <a href="{{ url_for('chat.index') }}" class="nav-btn {% if request.endpoint == 'chat.index' %}active{% endif %}">对话</a>
-        <a href="{{ url_for('settings.config') }}" class="nav-btn {% if request.endpoint and request.endpoint.startswith('settings.') %}active{% endif %}">设置</a>
+        <a href="{{ url_for('settings.global_config') }}" class="nav-btn {% if request.endpoint and request.endpoint.startswith('settings.') %}active{% endif %}">设置</a>
         <a href="{{ url_for('browser.recorder') }}" class="nav-btn {% if request.endpoint == 'browser.recorder' %}active{% endif %}">记录器</a>
-        <span id="navChatStatus" class="nav-chat-status" style="display: none;" aria-live="polite" title="点击可中止当前回复">对话进行中</span>
+        <span id="navChatStatus" class="nav-chat-status" style="display: none;" aria-live="polite" title="点击可中止当前回复">对话进行中（点击可中止）</span>
+        <span id="navChatHint" class="nav-chat-hint" style="display: none;">如在进行自动化任务，请不要切换导航栏或关闭浏览器，这会导致丢失任务计划</span>
         <span class="nav-spacer"></span>
         <a class="logout" href="{{ url_for('auth.logout') }}">退出</a>
     </nav>

@@ -48,9 +48,14 @@ def global_config():
     utcp_tools_enabled = cfg.get("utcp_tools_enabled", True)
     utcp_max_tool_rounds = int(cfg.get("utcp_max_tool_rounds", 50))
     utcp_unlimited_rounds = bool(cfg.get("utcp_unlimited_rounds", False))
+    utcp_unlimited_wait = bool(cfg.get("utcp_unlimited_wait", False))
+    utcp_long_task_seconds = max(1, min(3600, int(cfg.get("utcp_long_task_seconds", 10))))
+    conversation_lock_model = bool(cfg.get("conversation_lock_model", True))
     web_preview_enabled = bool(cfg.get("web_preview_enabled", True))
     system_prompt = cfg.get("system_prompt", "")
     safe_mode = bool(cfg.get("safe_mode", False))
+    access_safe_mode = bool(cfg.get("access_safe_mode", False))
+    debug_mode = bool(cfg.get("debug_mode", False))
     ai_default_language = cfg.get("ai_default_language") or "zh"
     from app import DEFAULT_SYSTEM_PROMPT
     return render_template(
@@ -59,10 +64,15 @@ def global_config():
         utcp_tools_enabled=utcp_tools_enabled,
         utcp_max_tool_rounds=utcp_max_tool_rounds,
         utcp_unlimited_rounds=utcp_unlimited_rounds,
+        utcp_unlimited_wait=utcp_unlimited_wait,
+        utcp_long_task_seconds=utcp_long_task_seconds,
+        conversation_lock_model=conversation_lock_model,
         web_preview_enabled=web_preview_enabled,
         system_prompt=system_prompt,
         default_system_prompt=DEFAULT_SYSTEM_PROMPT,
         safe_mode=safe_mode,
+        access_safe_mode=access_safe_mode,
+        debug_mode=debug_mode,
         ai_default_language=ai_default_language,
     )
 
@@ -98,6 +108,10 @@ def global_api_check():
                 results.append({"label": label, "ok": True, "message": "连接正常"})
         except Exception as e:
             results.append({"label": label, "ok": False, "message": str(e)})
+    log = current_app.config.get("DEBUG_LOG")
+    if callable(log):
+        for r in results:
+            log("API 检测 %s: ok=%s message=%s" % (r.get("label", ""), r.get("ok"), r.get("message", "")))
     return jsonify({"results": results})
 
 
@@ -128,6 +142,8 @@ def global_utcp_tools():
             "utcp_tools_enabled": cfg.get("utcp_tools_enabled", True),
             "utcp_max_tool_rounds": int(cfg.get("utcp_max_tool_rounds", 50)),
             "utcp_unlimited_rounds": bool(cfg.get("utcp_unlimited_rounds", False)),
+            "utcp_unlimited_wait": bool(cfg.get("utcp_unlimited_wait", False)),
+            "utcp_long_task_seconds": max(1, min(3600, int(cfg.get("utcp_long_task_seconds", 10)))),
         })
     data = request.get_json() or {}
     cfg = load()
@@ -141,12 +157,22 @@ def global_utcp_tools():
             pass
     if "utcp_unlimited_rounds" in data:
         cfg["utcp_unlimited_rounds"] = bool(data["utcp_unlimited_rounds"])
+    if "utcp_unlimited_wait" in data:
+        cfg["utcp_unlimited_wait"] = bool(data["utcp_unlimited_wait"])
+    if "utcp_long_task_seconds" in data:
+        try:
+            n = max(1, min(3600, int(data["utcp_long_task_seconds"])))
+            cfg["utcp_long_task_seconds"] = n
+        except (TypeError, ValueError):
+            pass
     save(cfg)
     return jsonify({
         "ok": True,
         "utcp_tools_enabled": cfg.get("utcp_tools_enabled", True),
-        "utcp_max_tool_rounds": int(cfg.get("utcp_max_tool_rounds", 50)),
-        "utcp_unlimited_rounds": bool(cfg.get("utcp_unlimited_rounds", False)),
+        "utcp_max_tool_rounds": cfg.get("utcp_max_tool_rounds", 50),
+        "utcp_unlimited_rounds": cfg.get("utcp_unlimited_rounds", False),
+        "utcp_unlimited_wait": cfg.get("utcp_unlimited_wait", False),
+        "utcp_long_task_seconds": max(1, min(3600, int(cfg.get("utcp_long_task_seconds", 10)))),
     })
 
 
@@ -163,6 +189,57 @@ def global_safe_mode():
     cfg["safe_mode"] = bool(data.get("safe_mode", False))
     save(cfg)
     return jsonify({"ok": True, "safe_mode": cfg["safe_mode"]})
+
+
+@settings_bp.route("/global/api/access-safe-mode", methods=["GET", "POST"])
+def global_access_safe_mode():
+    """GET 返回访问安全模式；POST 设置（body: {"access_safe_mode": true/false}）。部分功能需重启服务后生效。"""
+    load = current_app.config["CONFIG_LOADER"]
+    save = current_app.config["CONFIG_SAVER"]
+    if request.method == "GET":
+        cfg = load()
+        return jsonify({"access_safe_mode": bool(cfg.get("access_safe_mode", False))})
+    data = request.get_json() or {}
+    cfg = load()
+    cfg["access_safe_mode"] = bool(data.get("access_safe_mode", False))
+    save(cfg)
+    log = current_app.config.get("DEBUG_LOG")
+    if callable(log):
+        log("设置已保存: access_safe_mode=%s" % cfg["access_safe_mode"])
+    return jsonify({"ok": True, "access_safe_mode": cfg["access_safe_mode"]})
+
+
+@settings_bp.route("/global/api/debug-mode", methods=["GET", "POST"])
+def global_debug_mode():
+    """GET 返回调试模式；POST 设置（body: {"debug_mode": true/false}）。部分功能在服务器重启后生效。"""
+    load = current_app.config["CONFIG_LOADER"]
+    save = current_app.config["CONFIG_SAVER"]
+    if request.method == "GET":
+        cfg = load()
+        return jsonify({"debug_mode": bool(cfg.get("debug_mode", False))})
+    data = request.get_json() or {}
+    cfg = load()
+    cfg["debug_mode"] = bool(data.get("debug_mode", False))
+    save(cfg)
+    log = current_app.config.get("DEBUG_LOG")
+    if callable(log):
+        log("设置已保存: debug_mode=%s（部分功能需重启服务后生效）" % cfg["debug_mode"])
+    return jsonify({"ok": True, "debug_mode": cfg["debug_mode"]})
+
+
+@settings_bp.route("/global/api/conversation-lock-model", methods=["GET", "POST"])
+def global_conversation_lock_model():
+    """GET 返回是否启用限制器；POST 设置（body: {"conversation_lock_model": true/false}）"""
+    load = current_app.config["CONFIG_LOADER"]
+    save = current_app.config["CONFIG_SAVER"]
+    if request.method == "GET":
+        cfg = load()
+        return jsonify({"conversation_lock_model": bool(cfg.get("conversation_lock_model", True))})
+    data = request.get_json() or {}
+    cfg = load()
+    cfg["conversation_lock_model"] = bool(data.get("conversation_lock_model", True))
+    save(cfg)
+    return jsonify({"ok": True, "conversation_lock_model": cfg["conversation_lock_model"]})
 
 
 @settings_bp.route("/global/api/web-preview", methods=["GET", "POST"])

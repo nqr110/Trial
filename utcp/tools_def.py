@@ -11,24 +11,8 @@ def get_openai_tools():
         {
             "type": "function",
             "function": {
-                "name": "get_current_time",
-                "description": "获取当前日期和时间（默认中国北京时间 UTC+8）。当用户询问现在几点、今天几号、当前时间、星期几、时间戳时，应调用此工具。",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "timezone_hours": {
-                            "type": "number",
-                            "description": "可选。时区偏移小时数，如 8 表示北京时间，-5 表示美东。不传则使用北京时间(UTC+8)。",
-                        }
-                    },
-                },
-            },
-        },
-        {
-            "type": "function",
-            "function": {
                 "name": "run_shell",
-                "description": "在服务器（Linux）上执行任意 shell 命令。可用于执行系统命令、脚本、查看进程、安装软件、编译、运行程序等。你拥有与人类操作者相当的权限。在对话中调用时，会每 1 分钟根据当前输出由 AI 判断是否卡住，若判定卡住则中止，总时长上限 5 分钟；若需更长运行时间可依赖后台或分步执行。",
+                "description": "在服务器（Linux）上执行任意 shell 命令。可用于执行系统命令、脚本、查看进程、安装软件、编译、运行程序等。你拥有与人类操作者相当的权限。在对话中调用时，会每 1 分钟根据当前输出由 AI 判断是否卡住，若判定卡住则中止，总时长上限 5 分钟；若需更长运行时间可依赖后台或分步执行。当命令中包含 sqlmap 时，该次执行不设 5 分钟上限，超时由调用方通过 timeout_seconds 控制。",
                 "parameters": {
                     "type": "object",
                     "properties": {

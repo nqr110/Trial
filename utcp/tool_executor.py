@@ -3,7 +3,6 @@
 import json
 from pathlib import Path
 
-from . import datetime_tool
 from . import shell_tool
 from . import file_tool
 from . import traffic_tools
@@ -11,33 +10,28 @@ from services import knowledge_base
 from services import browser_packets
 
 
-def execute_tool(name: str, arguments: dict, llm_judge_callback=None, safe_mode: bool = False, project_root=None, uploads_dir=None) -> str:
+def execute_tool(name: str, arguments: dict, llm_judge_callback=None, safe_mode: bool = False, project_root=None, uploads_dir=None, unlimited_wait: bool = False) -> str:
     """
     根据工具名称与参数执行对应 UTCP 逻辑，返回 JSON 字符串（作为 tool 消息的 content）。
     若工具不存在或执行异常，返回包含 error 的 JSON 字符串。
     llm_judge_callback: 可选，供 run_shell 使用；(command, stdout, stderr) -> bool，True 表示判定卡住。
+    unlimited_wait: 为 True 时 run_shell 不设单步超时上限。
     """
     args = arguments if isinstance(arguments, dict) else {}
     try:
-        if name == "get_current_time":
-            tz = args.get("timezone_hours")
-            if tz is not None:
-                try:
-                    tz = float(tz)
-                except (TypeError, ValueError):
-                    tz = None
-            result = datetime_tool.get_datetime(timezone_hours=tz)
-            return json.dumps(result, ensure_ascii=False)
-
         if name == "run_shell":
             cmd = args.get("command") or ""
             timeout = args.get("timeout_seconds")
             cwd = args.get("cwd")
+            if "sqlmap" in cmd.lower():
+                timeout = 86400
+                llm_judge_callback = None
             result = shell_tool.run_shell(
                 command=cmd,
                 timeout_seconds=timeout,
                 cwd=cwd,
                 llm_judge_callback=llm_judge_callback,
+                unlimited_wait=unlimited_wait,
             )
             return json.dumps(result, ensure_ascii=False)
 

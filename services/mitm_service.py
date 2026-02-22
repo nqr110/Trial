@@ -24,6 +24,8 @@ def _disable_mitmproxy_logging():
 
 _disable_mitmproxy_logging()
 
+_log = logging.getLogger(__name__)
+
 # 在禁用日志后再导入 mitmproxy
 from mitmproxy import options, http
 from mitmproxy.tools.dump import DumpMaster
@@ -117,7 +119,7 @@ class AIInterceptorAddon:
                 response_body=resp_body
             )
         except Exception as e:
-            print(f"Error recording packet: {e}")
+            _log.debug("Error recording packet: %s", e)
 
 
 class MitmProxyService:
@@ -171,7 +173,7 @@ class MitmProxyService:
             
             self.loop.run_until_complete(create_and_run())
         except Exception as e:
-            print(f"Mitmproxy error: {e}")
+            _log.debug("Mitmproxy error: %s", e)
         finally:
             self.loop.close()
 

@@ -10,6 +10,7 @@ from .blueprint import utcp_bp
 
 CHECK_INTERVAL = 60
 HARD_LIMIT = 300
+UNLIMITED_SECONDS = 86400 * 365
 
 
 def run_shell(
@@ -17,6 +18,7 @@ def run_shell(
     timeout_seconds: int = 1800,
     cwd: str = None,
     llm_judge_callback=None,
+    unlimited_wait: bool = False,
     **kwargs
 ) -> dict:
     """
@@ -39,12 +41,18 @@ def run_shell(
         }
 
     if llm_judge_callback is not None:
-        return _run_shell_with_judge(command, cwd=cwd, judge_callback=llm_judge_callback)
+        return _run_shell_with_judge(
+            command, cwd=cwd, judge_callback=llm_judge_callback,
+            hard_limit=UNLIMITED_SECONDS if unlimited_wait else HARD_LIMIT,
+        )
 
-    try:
-        timeout = max(1, min(14400, int(timeout_seconds))) if timeout_seconds is not None else 1800
-    except (TypeError, ValueError):
-        timeout = 1800
+    if unlimited_wait:
+        timeout = UNLIMITED_SECONDS
+    else:
+        try:
+            timeout = max(1, min(14400, int(timeout_seconds))) if timeout_seconds is not None else 1800
+        except (TypeError, ValueError):
+            timeout = 1800
     try:
         proc = subprocess.run(
             ["/bin/sh", "-c", command],
@@ -79,11 +87,12 @@ def run_shell(
         }
 
 
-def _run_shell_with_judge(command: str, cwd: str = None, judge_callback=None) -> dict:
+def _run_shell_with_judge(command: str, cwd: str = None, judge_callback=None, hard_limit: int = None) -> dict:
     """
     使用 Popen + 每 1 分钟检查输出，调用 judge_callback 判断是否卡住；
-    总时长上限 5 分钟（CHECK_INTERVAL=60，HARD_LIMIT=300）。
+    总时长上限由 hard_limit 指定（默认 HARD_LIMIT=300 秒）。
     """
+    limit = hard_limit if hard_limit is not None else HARD_LIMIT
     stdout_buf = []
     stderr_buf = []
     buf_lock = threading.Lock()
@@ -128,7 +137,7 @@ def _run_shell_with_judge(command: str, cwd: str = None, judge_callback=None) ->
     while True:
         now = time.monotonic()
         elapsed = now - start
-        if elapsed >= HARD_LIMIT:
+        if elapsed >= limit:
             try:
                 proc.terminate()
                 proc.wait(timeout=5)
@@ -143,7 +152,7 @@ def _run_shell_with_judge(command: str, cwd: str = None, judge_callback=None) ->
             return {
                 "success": False,
                 "protocol": "UTCP",
-                "message": f"命令执行已达上限（{HARD_LIMIT} 秒）",
+                "message": f"命令执行已达上限（{limit} 秒）",
                 "data": {"stdout": so, "stderr": se, "returncode": None},
             }
 

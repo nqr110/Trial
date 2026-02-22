@@ -34,9 +34,6 @@ conda activate Trial
 # Conda环境
 conda activate Trial
 pip install -r requirements.txt
-# VNC环境
-apt update
-apt install -y xvfb x11vnc websockify fluxbox tigervnc-standalone-server
 #mimproxy环境
 apt install mitmproxy
 # 运行

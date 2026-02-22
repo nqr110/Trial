@@ -61,17 +61,42 @@
             <span class="status-msg" id="utcpToolsStatus"></span>
         </div>
         <div style="margin-top: 0.5rem;">
-            <label class="toggle-row"><input type="checkbox" id="utcpUnlimitedRounds" {% if utcp_unlimited_rounds %}checked{% endif %}> 开启轮次无上限模式（执行超长任务流）</label>
+            <label class="toggle-row"><input type="checkbox" id="utcpUnlimitedRounds" {% if utcp_unlimited_rounds %}checked{% endif %}> 无限任务执行轮次</label>
+        </div>
+        <div style="margin-top: 0.5rem;">
+            <label class="toggle-row"><input type="checkbox" id="utcpUnlimitedWait" {% if utcp_unlimited_wait %}checked{% endif %}> 无限任务等待时间（单步不设超时）</label>
+        </div>
+        <div style="margin-top: 0.5rem;">
+            <label for="utcpLongTaskSeconds">耗时超阈值(秒)则子任务横栏浅红底</label>
+            <input type="number" id="utcpLongTaskSeconds" min="1" max="3600" value="{{ utcp_long_task_seconds }}" style="width: 5rem; padding: 0.4rem 0.5rem; margin-left: 0.5rem; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text);">
         </div>
         <div style="margin-top: 0.5rem;">
             <label class="toggle-row"><input type="checkbox" id="webPreviewEnabled" {% if web_preview_enabled %}checked{% endif %}> 启用自动化任务中的 Web 页面预览</label>
         </div>
     </section>
     <section class="global-section">
+        <h2>限制器</h2>
+        <p class="desc">开启后，每个对话页仅由创建时的供应商与模型维护，不可在对话中切换模型；关闭则可在同一对话中自由切换供应商与模型。</p>
+        <label class="toggle-row"><input type="checkbox" id="conversationLockModel" {% if conversation_lock_model %}checked{% endif %}> 启用限制器（一个对话仅由原供应商与模型维护）</label>
+        <span class="status-msg" id="conversationLockModelStatus"></span>
+    </section>
+    <section class="global-section">
         <h2>安全模式</h2>
         <p class="desc">开启后，AI 不可修改项目自身文件（写文件、执行会改写项目目录的命令等均会被拒绝）；上传文件不受影响。</p>
         <label class="toggle-row"><input type="checkbox" id="safeMode" {% if safe_mode %}checked{% endif %}> 开启安全模式</label>
         <span class="status-msg" id="safeModeStatus"></span>
+    </section>
+    <section class="global-section">
+        <h2>访问安全模式</h2>
+        <p class="desc">开启后，服务器每次启动时自动重新生成 HTTPS 证书（不使用预生成证书）。关闭则使用预生成证书以加快首次访问。部分功能在服务器重启后生效。</p>
+        <label class="toggle-row"><input type="checkbox" id="accessSafeMode" {% if access_safe_mode %}checked{% endif %}> 启用访问安全模式</label>
+        <span class="status-msg" id="accessSafeModeStatus"></span>
+    </section>
+    <section class="global-section">
+        <h2>调试模式</h2>
+        <p class="desc">开启后，在服务器控制台打印各类模块运行状态与关键运行信息，便于排查问题。部分功能在服务器重启后生效。</p>
+        <label class="toggle-row"><input type="checkbox" id="debugMode" {% if debug_mode %}checked{% endif %}> 启用调试模式</label>
+        <span class="status-msg" id="debugModeStatus"></span>
     </section>
     <section class="global-section">
         <h2>AI 默认回复语言</h2>
@@ -144,22 +169,41 @@
         var enabled = document.getElementById('utcpToolsEnabled').checked;
         var rounds = parseInt(document.getElementById('utcpMaxRounds').value, 10) || 50;
         rounds = Math.max(1, Math.min(200, rounds));
-        var unlimited = document.getElementById('utcpUnlimitedRounds').checked;
-        fetch('/settings/global/api/utcp-tools', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ utcp_tools_enabled: enabled, utcp_max_tool_rounds: rounds, utcp_unlimited_rounds: unlimited }) })
+        var unlimitedRounds = document.getElementById('utcpUnlimitedRounds').checked;
+        var unlimitedWait = document.getElementById('utcpUnlimitedWait').checked;
+        var longSec = Math.max(1, Math.min(3600, parseInt(document.getElementById('utcpLongTaskSeconds').value, 10) || 10));
+        fetch('/settings/global/api/utcp-tools', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ utcp_tools_enabled: enabled, utcp_max_tool_rounds: rounds, utcp_unlimited_rounds: unlimitedRounds, utcp_unlimited_wait: unlimitedWait, utcp_long_task_seconds: longSec }) })
             .then(function(r) { return r.json(); }).then(function(d) { st.textContent = d.ok ? '已保存' : (d.error || ''); }).catch(function() { st.textContent = '保存失败'; });
     }
     document.getElementById('utcpToolsEnabled').addEventListener('change', saveUtcpTools);
     document.getElementById('utcpMaxRounds').addEventListener('change', saveUtcpTools);
     document.getElementById('utcpUnlimitedRounds').addEventListener('change', saveUtcpTools);
+    document.getElementById('utcpUnlimitedWait').addEventListener('change', saveUtcpTools);
+    document.getElementById('utcpLongTaskSeconds').addEventListener('change', saveUtcpTools);
     document.getElementById('webPreviewEnabled').addEventListener('change', function() {
         var st = document.getElementById('utcpToolsStatus');
         fetch('/settings/global/api/web-preview', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ web_preview_enabled: this.checked }) })
+            .then(function(r) { return r.json(); }).then(function(d) { st.textContent = d.ok ? '已保存' : (d.error || ''); }).catch(function() { st.textContent = '保存失败'; });
+    });
+    document.getElementById('conversationLockModel').addEventListener('change', function() {
+        var st = document.getElementById('conversationLockModelStatus');
+        fetch('/settings/global/api/conversation-lock-model', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ conversation_lock_model: this.checked }) })
             .then(function(r) { return r.json(); }).then(function(d) { st.textContent = d.ok ? '已保存' : (d.error || ''); }).catch(function() { st.textContent = '保存失败'; });
     });
     document.getElementById('safeMode').addEventListener('change', function() {
         var st = document.getElementById('safeModeStatus');
         fetch('/settings/global/api/safe-mode', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ safe_mode: this.checked }) })
             .then(function(r) { return r.json(); }).then(function(d) { st.textContent = d.ok ? '已保存' : (d.error || ''); }).catch(function() { st.textContent = '保存失败'; });
+    });
+    document.getElementById('accessSafeMode').addEventListener('change', function() {
+        var st = document.getElementById('accessSafeModeStatus');
+        fetch('/settings/global/api/access-safe-mode', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ access_safe_mode: this.checked }) })
+            .then(function(r) { return r.json(); }).then(function(d) { st.textContent = d.ok ? '已保存（部分功能需重启服务后生效）' : (d.error || ''); }).catch(function() { st.textContent = '保存失败'; });
+    });
+    document.getElementById('debugMode').addEventListener('change', function() {
+        var st = document.getElementById('debugModeStatus');
+        fetch('/settings/global/api/debug-mode', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ debug_mode: this.checked }) })
+            .then(function(r) { return r.json(); }).then(function(d) { st.textContent = d.ok ? '已保存（部分功能需重启服务后生效）' : (d.error || ''); }).catch(function() { st.textContent = '保存失败'; });
     });
     document.getElementById('aiDefaultLanguage').addEventListener('change', function() {
         var st = document.getElementById('aiDefaultLanguageStatus');

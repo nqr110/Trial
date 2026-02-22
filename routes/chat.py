@@ -9,6 +9,12 @@ from flask import Blueprint, render_template, request, jsonify, Response, stream
 from services.llm import get_available_models, chat_completion, chat_completion_with_tools, chat_completion_stream, summarize_conversation_title
 
 
+def _chat_debug(msg):
+    log = current_app.config.get("DEBUG_LOG") if current_app else None
+    if callable(log):
+        log(msg)
+
+
 def _safe_filename(name):
     """保留扩展名，文件名仅保留安全字符。"""
     name = name or "file"
@@ -159,6 +165,9 @@ def api_models():
         "utcp_tools_enabled": cfg.get("utcp_tools_enabled", True),
         "utcp_max_tool_rounds": max_rounds,
         "utcp_unlimited_rounds": bool(cfg.get("utcp_unlimited_rounds", False)),
+        "utcp_unlimited_wait": bool(cfg.get("utcp_unlimited_wait", False)),
+        "utcp_long_task_seconds": max(1, min(3600, int(cfg.get("utcp_long_task_seconds", 10)))),
+        "conversation_lock_model": bool(cfg.get("conversation_lock_model", True)),
         "web_preview_enabled": bool(cfg.get("web_preview_enabled", True)),
     })
 
@@ -200,6 +209,27 @@ def api_conversation_update(cid):
     if not conv:
         return jsonify({"error": "对话不存在"}), 404
     return jsonify(conv)
+
+
+@chat_bp.route("/api/conversations/<cid>/messages", methods=["PATCH"])
+def api_conversation_messages_patch(cid):
+    """删除某一对话轮次。body: { "remove_turn_index": 0 }，轮次为 user+assistant 对，0 表示第一轮。"""
+    conv = get_conversation(cid)
+    if not conv:
+        return jsonify({"error": "对话不存在"}), 404
+    data = request.get_json() or {}
+    try:
+        i = int(data.get("remove_turn_index", -1))
+    except (TypeError, ValueError):
+        return jsonify({"error": "缺少或无效的 remove_turn_index"}), 400
+    msgs = conv.get("messages") or []
+    n = len(msgs) // 2
+    if i < 0 or i >= n:
+        return jsonify({"error": "轮次下标越界"}), 400
+    new_msgs = msgs[: 2 * i] + msgs[2 * i + 2 :]
+    update_conversation(cid, messages=new_msgs)
+    updated = get_conversation(cid)
+    return jsonify(updated)
 
 
 @chat_bp.route("/api/conversations/<cid>", methods=["DELETE"])
@@ -262,6 +292,13 @@ def api_chat():
     attachment_paths = data.get("attachment_paths") or []
     if not provider_id or not model or not messages:
         return jsonify({"error": "缺少 provider_id、model 或 messages"}), 400
+    cfg = current_app.config["CONFIG_LOADER"]()
+    lock_model = bool(cfg.get("conversation_lock_model", True))
+    if lock_model and conversation_id:
+        conv = get_conversation(conversation_id)
+        if conv and conv.get("provider_id") is not None and conv.get("model") is not None:
+            if conv.get("provider_id") != provider_id or conv.get("model") != model:
+                return jsonify({"error": "该对话已由固定模型维护，请使用对话绑定的模型继续"}), 400
     messages = _inject_system_prompt(messages, use_utcp_tools)
     messages = _inject_attachment_paths(messages, attachment_paths)
     messages = _trim_previous_long_assistant_if_new_topic(messages, use_utcp_tools)
@@ -283,6 +320,8 @@ def api_chat():
         if conversation_id:
             conv = get_conversation(conversation_id)
             if conv:
+                if lock_model and (conv.get("provider_id") is None or conv.get("model") is None):
+                    update_conversation(conversation_id, provider_id=provider_id, model=model)
                 new_messages = conv.get("messages", []) + [
                     {"role": "user", "content": last_user},
                     {"role": "assistant", "content": content, "model_label": model_label},
@@ -299,6 +338,8 @@ def api_chat():
                     messages[-2] if len(messages) >= 2 else messages[-1],
                     {"role": "assistant", "content": content, "model_label": model_label},
                 ],
+                provider_id=provider_id if lock_model else None,
+                model=model if lock_model else None,
             )
             conversation_id = conv["id"]
             summary = summarize_conversation_title(provider_id, model, last_user, content)
@@ -321,7 +362,18 @@ def api_chat_stream():
     use_deep_thinking = data.get("use_deep_thinking") is True
     attachment_paths = data.get("attachment_paths") or []
     if not provider_id or not model or not messages:
+        _chat_debug("流式对话请求无效: 缺少 provider_id/model/messages")
         return jsonify({"error": "缺少 provider_id、model 或 messages"}), 400
+    cfg = current_app.config["CONFIG_LOADER"]()
+    lock_model = bool(cfg.get("conversation_lock_model", True))
+    if lock_model and conversation_id:
+        conv = get_conversation(conversation_id)
+        if conv and conv.get("provider_id") is not None and conv.get("model") is not None:
+            if conv.get("provider_id") != provider_id or conv.get("model") != model:
+                _chat_debug("流式对话被拒绝: 对话已绑定 provider_id=%s model=%s" % (conv.get("provider_id"), conv.get("model")))
+                return jsonify({"error": "该对话已由固定模型维护，请使用对话绑定的模型继续"}), 400
+    _chat_debug("流式对话开始: provider_id=%s model=%s use_utcp_tools=%s use_deep_thinking=%s messages_count=%s" % (
+        provider_id, model, use_utcp_tools, use_deep_thinking, len(messages)))
     messages = _inject_system_prompt(messages, use_utcp_tools)
     messages = _inject_attachment_paths(messages, attachment_paths)
     messages = _trim_previous_long_assistant_if_new_topic(messages, use_utcp_tools)
@@ -358,16 +410,21 @@ def api_chat_stream():
         plan_content = ""  # 第一轮后的「当前情况与计划」，用于与最终内容合并
         save_interval = 0
         cid = conversation_id
+        _chat_debug("AI对话 用户消息: %s" % ((last_user or "")[:200] or "(空)"))
         if not cid:
             conv = create_conversation(
                 title=(last_user[:50] if last_user else "新对话"),
                 messages=[{"role": "user", "content": last_user}],
+                provider_id=provider_id if lock_model else None,
+                model=model if lock_model else None,
             )
             cid = conv["id"]
             yield f"data: {json.dumps({'conversation_id': cid}, ensure_ascii=False)}\n\n"
         else:
             conv = get_conversation(cid)
             if conv:
+                if lock_model and (conv.get("provider_id") is None or conv.get("model") is None):
+                    update_conversation(cid, provider_id=provider_id, model=model)
                 new_msgs = conv.get("messages", []) + [{"role": "user", "content": last_user}]
                 update_conversation(cid, messages=new_msgs)
         try:
@@ -384,14 +441,18 @@ def api_chat_stream():
                     elif ev.get("type") == "plan":
                         plan_content = ev.get("content") or ""
                         save_interval += 1
+                        _chat_debug("自动化任务栏 计划: %s" % ((plan_content or "")[:300]))
                     elif ev.get("type") == "tool_call":
                         tool_steps.append({
                             "name": ev.get("name") or "",
                             "arguments_preview": ev.get("arguments_preview") or "",
                             "result_summary": "",
                             "result_full": "",
+                            "step_index": ev.get("step_index"),
+                            "step_total": ev.get("step_total"),
                         })
                         save_interval += 1
+                        _chat_debug("自动化任务栏 工具调用: %s %s" % (ev.get("name") or "", (ev.get("arguments_preview") or "")[:200]))
                     elif ev.get("type") == "tool_result" and tool_steps:
                         summary = (ev.get("result_summary") or ev.get("result_full") or "")[:2000]
                         full_result = (ev.get("result_full") or ev.get("result_summary") or "")[:8000]
@@ -399,18 +460,26 @@ def api_chat_stream():
                             if not st.get("result_summary") and not st.get("result_full"):
                                 st["result_summary"] = summary
                                 st["result_full"] = full_result
+                                st["success"] = ev.get("success") is not False
+                                if ev.get("elapsed_seconds") is not None:
+                                    st["elapsed_seconds"] = ev.get("elapsed_seconds")
                                 break
                         save_interval += 1
-                    if save_interval >= 6:
+                        _chat_debug("自动化任务栏 工具结果: %s" % ((summary or full_result or "")[:300]))
+                    if save_interval >= 1:
                         save_interval = 0
                         _save_partial(cid, full_content, tool_steps, plan_content)
+                        raw = "".join(full_content)
+                        if raw:
+                            _chat_debug("AI对话 助手内容(片段): %d 字" % len(raw))
                     yield f"data: {json.dumps(ev, ensure_ascii=False)}\n\n"
                 else:
                     full_content.append(chunk if isinstance(chunk, str) else "")
                     save_interval += 1
-                    if save_interval >= 6:
+                    if save_interval >= 1:
                         save_interval = 0
                         _save_partial(cid, full_content, tool_steps)
+                        _chat_debug("AI对话 助手内容(片段): %d 字" % len("".join(full_content)))
                     yield f"data: {json.dumps({'content': chunk}, ensure_ascii=False)}\n\n"
             content = ("【当前情况与计划】\n\n" + plan_content + "\n\n---\n\n" + "".join(full_content)) if plan_content else "".join(full_content)
             assistant_msg = {"role": "assistant", "content": content, "model_label": model_label}
@@ -429,7 +498,9 @@ def api_chat_stream():
                     if summary:
                         update_conversation(cid, title=summary)
             yield f"data: {json.dumps({'conversation_id': cid, 'model_label': model_label}, ensure_ascii=False)}\n\n"
+            _chat_debug("流式对话完成: conversation_id=%s 助手回复 %d 字" % (cid, len(content)))
         except Exception as e:
+            _chat_debug("流式对话异常: %s" % str(e))
             yield f"data: {json.dumps({'error': str(e)}, ensure_ascii=False)}\n\n"
 
     return Response(

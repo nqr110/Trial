@@ -42,8 +42,8 @@ def get_conversation(cid):
     return None
 
 
-def create_conversation(title="新对话", messages=None):
-    """创建新对话，返回完整对象"""
+def create_conversation(title="新对话", messages=None, provider_id=None, model=None):
+    """创建新对话，返回完整对象。可选 provider_id、model 以锁定该对话仅由此模型维护。"""
     conversations = _load_all()
     now = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
     conv = {
@@ -53,13 +53,17 @@ def create_conversation(title="新对话", messages=None):
         "created_at": now,
         "updated_at": now,
     }
+    if provider_id is not None:
+        conv["provider_id"] = provider_id
+    if model is not None:
+        conv["model"] = model
     conversations.append(conv)
     _save_all(conversations)
     return conv
 
 
-def update_conversation(cid, title=None, messages=None):
-    """更新对话的 title 和/或 messages"""
+def update_conversation(cid, title=None, messages=None, provider_id=None, model=None):
+    """更新对话的 title、messages 和/或 provider_id、model"""
     conversations = _load_all()
     for c in conversations:
         if c.get("id") == cid:
@@ -67,6 +71,10 @@ def update_conversation(cid, title=None, messages=None):
                 c["title"] = title
             if messages is not None:
                 c["messages"] = list(messages)
+            if provider_id is not None:
+                c["provider_id"] = provider_id
+            if model is not None:
+                c["model"] = model
             c["updated_at"] = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
             _save_all(conversations)
             return c

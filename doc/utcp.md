@@ -24,7 +24,6 @@ UTCP 相关代码位于项目根目录下的 **`utcp/`** 包中，按功能拆�
 | `utcp/__init__.py` | 导出 `utcp_bp`，并导入各子模块以完成路由注册 |
 | `utcp/blueprint.py` | 定义统一 Blueprint `utcp_bp` |
 | `utcp/health.py` | 健康检查端点 `GET /api/utcp/health` |
-| `utcp/datetime_tool.py` | 日期时间工具：`get_datetime()` 与 `GET/POST /api/utcp/datetime` |
 
 应用在 `app.py` 中通过 `from routes import utcp_bp` 取得 Blueprint（`routes` 从 `utcp` 包再导出），并挂载到 `/api/utcp`。
 
@@ -81,7 +80,7 @@ UTCP 相关代码位于项目根目录下的 **`utcp/`** 包中，按功能拆�
 
 ### 1. 函数形态（工具逻辑）
 
-- **位置**：放在 `utcp/` 包下对应功能模块中（如 `utcp/datetime_tool.py`、`utcp/your_tool.py`）。
+- **位置**：放在 `utcp/` 包下对应功能模块中（如 `utcp/your_tool.py`）。
 - **签名**：参数建议使用关键字参数 + `**kwargs`，便于从 GET 查询串或 POST body 里统一取参。
 - **返回值**：统一返回 `dict`，便于在路由里 `jsonify(result)` 返回 JSON。
 
@@ -146,7 +145,6 @@ def utcp_your_tool():
 | 路径 | 方法 | 说明 |
 |------|------|------|
 | `/api/utcp/health` | GET | 健康检查 |
-| `/api/utcp/datetime` | GET / POST | 获取当前日期时间及时区、星期、时间戳等，可选 `timezone_hours`（如 8 表示 UTC+8） |
 
 Web 端提供 **UTCP 控制台** 页面（导航栏「UTCP 控制台」或访问 `/utcp`），可对上述接口进行调用并查看 JSON 响应。
 
@@ -157,5 +155,5 @@ Web 端提供 **UTCP 控制台** 页面（导航栏「UTCP 控制台」或访问
 ## 小结
 
 - **UTCP 工具在本项目中是静态的**：随 Flask 应用一起启动，以 HTTP 路由形式提供，无需单独服务进程。
-- **代码位置**：UTCP 逻辑在 **`utcp/`** 包下，按功能拆分为 `blueprint.py`、`health.py`、`datetime_tool.py` 等，新工具可新增独立模块并在 `__init__.py` 中导入注册。
+- **代码位置**：UTCP 逻辑在 **`utcp/`** 包下，按功能拆分为 `blueprint.py`、`health.py`、`shell_tool.py` 等，新工具可新增独立模块并在 `__init__.py` 中导入注册。
 - **编写规范**：业务函数返回统一结构的 `dict`（含 `success`/`protocol`/`message`/`data`），路由负责从请求中取参并 `jsonify` 返回。

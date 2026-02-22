@@ -1,0 +1,45 @@
+{"sessionId":"f9235e","location":"chat.html:status-shown","message":"nav status shown","data":{},"timestamp":1771794442559,"hypothesisId":"H1"}
+{"sessionId":"f9235e","location":"chat.html:catch","message":"stream catch","data":{"name":"AbortError","msg":"The operation was aborted. "},"timestamp":1771794447097,"hypothesisId":"H4"}
+{"sessionId":"f9235e","location":"chat.html:finally","message":"stream finally","data":{"navStatusElExists":true},"timestamp":1771794447098,"hypothesisId":"H1"}
+{"sessionId":"f9235e","location":"chat.html:status-shown","message":"nav status shown","data":{},"timestamp":1771794452468,"hypothesisId":"H1"}
+{"sessionId":"f9235e","location":"chat.html:catch","message":"stream catch","data":{"name":"AbortError","msg":"The operation was aborted. "},"timestamp":1771795518653,"hypothesisId":"H4"}
+{"sessionId":"f9235e","location":"chat.html:finally","message":"stream finally","data":{"navStatusElExists":true},"timestamp":1771795518654,"hypothesisId":"H1"}
+{"sessionId":"f9235e","location":"chat.html:status-shown","message":"nav status shown","data":{},"timestamp":1771797479094,"hypothesisId":"H1"}
+{"sessionId":"f9235e","location":"chat.html:read-done","message":"stream result.done true","data":{},"timestamp":1771797482329,"hypothesisId":"H3"}
+{"sessionId":"f9235e","location":"chat.html:finally","message":"stream finally","data":{"navStatusElExists":true},"timestamp":1771797482329,"hypothesisId":"H1"}
+{"sessionId":"f9235e","location":"chat.html:then-success","message":"stream then success","data":{},"timestamp":1771797482329,"hypothesisId":"H5"}
+{"sessionId":"f9235e","location":"chat.html:status-shown","message":"nav status shown","data":{},"timestamp":1771797488383,"hypothesisId":"H1"}
+{"sessionId":"f9235e","location":"chat.html:read-done","message":"stream result.done true","data":{},"timestamp":1771797491463,"hypothesisId":"H3"}
+{"sessionId":"f9235e","location":"chat.html:finally","message":"stream finally","data":{"navStatusElExists":true},"timestamp":1771797491464,"hypothesisId":"H1"}
+{"sessionId":"f9235e","location":"chat.html:then-success","message":"stream then success","data":{},"timestamp":1771797491464,"hypothesisId":"H5"}
+{"sessionId":"f9235e","location":"chat.html:status-shown","message":"nav status shown","data":{},"timestamp":1771797497806,"hypothesisId":"H1"}
+{"sessionId":"f9235e","location":"chat.html:catch","message":"stream catch","data":{"name":"AbortError","msg":"The operation was aborted. "},"timestamp":1771797526976,"hypothesisId":"H4"}
+{"sessionId":"f9235e","location":"chat.html:finally","message":"stream finally","data":{"navStatusElExists":true},"timestamp":1771797526976,"hypothesisId":"H1"}
+{"sessionId":"f9235e","location":"chat.html:status-shown","message":"nav status shown","data":{},"timestamp":1771797532500,"hypothesisId":"H1"}
+{"sessionId":"f9235e","location":"chat.html:catch","message":"stream catch","data":{"name":"AbortError","msg":"The operation was aborted. "},"timestamp":1771797545583,"hypothesisId":"H4"}
+{"sessionId":"f9235e","location":"chat.html:finally","message":"stream finally","data":{"navStatusElExists":true},"timestamp":1771797545583,"hypothesisId":"H1"}
+{"sessionId":"f9235e","location":"chat.html:status-shown","message":"nav status shown","data":{},"timestamp":1771798011930,"hypothesisId":"H1"}
+{"sessionId":"f9235e","location":"chat.html:catch","message":"stream catch","data":{"name":"AbortError","msg":"The operation was aborted. "},"timestamp":1771798020953,"hypothesisId":"H4"}
+{"sessionId":"f9235e","location":"chat.html:finally","message":"stream finally","data":{"navStatusElExists":true},"timestamp":1771798020954,"hypothesisId":"H1"}
+{"sessionId":"f9235e","location":"chat.html:status-shown","message":"nav status shown","data":{},"timestamp":1771798042282,"hypothesisId":"H1"}
+{"sessionId":"f9235e","location":"chat.html:read-done","message":"stream result.done true","data":{},"timestamp":1771798044882,"hypothesisId":"H3"}
+{"sessionId":"f9235e","location":"chat.html:finally","message":"stream finally","data":{"navStatusElExists":true},"timestamp":1771798044882,"hypothesisId":"H1"}
+{"sessionId":"f9235e","location":"chat.html:then-success","message":"stream then success","data":{},"timestamp":1771798044882,"hypothesisId":"H5"}
+{"sessionId":"f9235e","location":"chat.html:status-shown","message":"nav status shown","data":{},"timestamp":1771798048536,"hypothesisId":"H1"}
+{"sessionId":"f9235e","location":"chat.html:finally","message":"stream finally","data":{"navStatusElExists":true},"timestamp":1771798048568,"hypothesisId":"H1"}
+{"sessionId":"f9235e","location":"chat.html:catch","message":"stream catch","data":{"name":"Error","msg":"该对话已由固定模型维护，请使用对话绑定的模型继续"},"timestamp":1771798048567,"hypothesisId":"H4"}
+{"sessionId":"f9235e","location":"chat.html:status-shown","message":"nav status shown","data":{},"timestamp":1771798664134,"hypothesisId":"H1"}
+{"sessionId":"f9235e","location":"chat.html:read-done","message":"stream result.done true","data":{},"timestamp":1771798667211,"hypothesisId":"H3"}
+{"sessionId":"f9235e","location":"chat.html:then-success","message":"stream then success","data":{},"timestamp":1771798667211,"hypothesisId":"H5"}
+{"sessionId":"f9235e","location":"chat.html:finally","message":"stream finally","data":{"navStatusElExists":true},"timestamp":1771798667212,"hypothesisId":"H1"}
+{"sessionId":"f9235e","location":"chat.html:status-shown","message":"nav status shown","data":{},"timestamp":1771798670037,"hypothesisId":"H1"}
+{"sessionId":"f9235e","location":"chat.html:catch","message":"stream catch","data":{"name":"Error","msg":"该对话已由固定模型维护，请使用对话绑定的模型继续"},"timestamp":1771798670071,"hypothesisId":"H4"}
+{"sessionId":"f9235e","location":"chat.html:finally","message":"stream finally","data":{"navStatusElExists":true},"timestamp":1771798670072,"hypothesisId":"H1"}
+{"sessionId":"f9235e","location":"chat.html:status-shown","message":"nav status shown","data":{},"timestamp":1771798683794,"hypothesisId":"H1"}
+{"sessionId":"f9235e","location":"chat.html:read-done","message":"stream result.done true","data":{},"timestamp":1771798687444,"hypothesisId":"H3"}
+{"sessionId":"f9235e","location":"chat.html:then-success","message":"stream then success","data":{},"timestamp":1771798687444,"hypothesisId":"H5"}
+{"sessionId":"f9235e","location":"chat.html:finally","message":"stream finally","data":{"navStatusElExists":true},"timestamp":1771798687444,"hypothesisId":"H1"}
+{"sessionId":"f9235e","location":"chat.html:status-shown","message":"nav status shown","data":{},"timestamp":1771798688090,"hypothesisId":"H1"}
+{"sessionId":"f9235e","location":"chat.html:read-done","message":"stream result.done true","data":{},"timestamp":1771798690484,"hypothesisId":"H3"}
+{"sessionId":"f9235e","location":"chat.html:finally","message":"stream finally","data":{"navStatusElExists":true},"timestamp":1771798690485,"hypothesisId":"H1"}
+{"sessionId":"f9235e","location":"chat.html:then-success","message":"stream then success","data":{},"timestamp":1771798690485,"hypothesisId":"H5"}

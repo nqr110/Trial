@@ -4,6 +4,7 @@ LLM 服务：从 config.providers 读取服务商列表，按 provider_id + mode
 支持将 UTCP 工具以 OpenAI function 形式传给模型，并处理 model 返回的 tool_calls。
 """
 import json
+import time
 import requests
 from flask import current_app
 
@@ -220,8 +221,9 @@ def chat_completion_with_tools(provider_id: str, model: str, messages: list, max
                 name, args,
                 llm_judge_callback=shell_judge if name == "run_shell" else None,
                 safe_mode=safe_mode, project_root=project_root, uploads_dir=uploads_dir,
+                unlimited_wait=bool(cfg.get("utcp_unlimited_wait", False)),
             )
-            current_messages.append({"role": "tool", "tool_call_id": tid, "content": result})
+            current_messages.append({"role": "tool", "tool_call_id": tid, "content": _truncate_tool_result_for_context(result)})
 
         if not plan_done:
             plan_done = True
@@ -230,6 +232,7 @@ def chat_completion_with_tools(provider_id: str, model: str, messages: list, max
                     api_base, api_key, model, current_messages, extra_body
                 )
             except Exception:
+                plan_text = "（计划生成暂时不可用，将直接继续执行）"
                 current_messages.append({"role": "user", "content": _PLAN_CONTINUE_USER})
 
     if plan_text:
@@ -272,6 +275,15 @@ _PLAN_REQUEST_USER = (
     "仅输出这段说明，不要调用任何工具。"
 )
 _PLAN_CONTINUE_USER = "请按计划继续执行。"
+
+_TOOL_RESULT_CONTEXT_MAX = 2000
+
+
+def _truncate_tool_result_for_context(result: str) -> str:
+    """写入 current_messages 的工具结果做长度限制，避免挤爆上下文。"""
+    if len(result) <= _TOOL_RESULT_CONTEXT_MAX:
+        return result
+    return result[:_TOOL_RESULT_CONTEXT_MAX] + "\n\n（结果已截断，仅前 {} 字写入上下文）".format(_TOOL_RESULT_CONTEXT_MAX)
 
 
 def _request_plan_and_append_messages(api_base, api_key, model, current_messages, extra_body) -> str:
@@ -332,6 +344,7 @@ def chat_completion_stream_with_tool_events(provider_id: str, model: str, messag
         tool_calls = msg.get("tool_calls")
         content = (msg.get("content") or "").strip()
 
+        # 无 tool_calls 时，content 即为本轮的最终总结，按 chunk 流式输出后结束
         if not tool_calls:
             chunk_size = 8
             for i in range(0, len(content or ""), chunk_size):
@@ -339,6 +352,8 @@ def chat_completion_stream_with_tool_events(provider_id: str, model: str, messag
             return
 
         current_messages.append(msg)
+        # 阶段提示：第一轮为探索，之后为执行
+        yield {"type": "phase", "phase": "execute" if plan_already_shown else "explore"}
         shell_judge = make_shell_judge_callback(provider_id, model)
         cfg = _get_config()
         safe_mode = bool(cfg.get("safe_mode", False))
@@ -346,7 +361,7 @@ def chat_completion_stream_with_tool_events(provider_id: str, model: str, messag
         project_root = str(project_root) if project_root else None
         uploads_dir = current_app.config.get("UPLOADS_DIR")
         uploads_dir = str(uploads_dir) if uploads_dir else None
-        for tc in tool_calls:
+        for step_index, tc in enumerate(tool_calls, 1):
             tid = tc.get("id") or ""
             fn = tc.get("function") or {}
             name = fn.get("name") or ""
@@ -355,22 +370,39 @@ def chat_completion_stream_with_tool_events(provider_id: str, model: str, messag
             except json.JSONDecodeError:
                 args = {}
             args_preview = json.dumps(args, ensure_ascii=False)[:120]
-            yield {"type": "tool_call", "tool_call_id": tid, "name": name, "arguments": args, "arguments_preview": args_preview}
+            yield {"type": "tool_call", "tool_call_id": tid, "name": name, "arguments": args, "arguments_preview": args_preview, "step_index": step_index, "step_total": len(tool_calls)}
             if name == "preview_web_page":
                 url = (args.get("url") or "").strip()
                 if url.startswith("http://") or url.startswith("https://"):
                     yield {"type": "web_view", "url": url}
+            t0 = time.time()
             result = execute_tool(
                 name, args,
                 llm_judge_callback=shell_judge if name == "run_shell" else None,
                 safe_mode=safe_mode, project_root=project_root, uploads_dir=uploads_dir,
+                unlimited_wait=bool(cfg.get("utcp_unlimited_wait", False)),
             )
+            elapsed = time.time() - t0
+            try:
+                res_obj = json.loads(result) if isinstance(result, str) else result
+                success = bool(res_obj.get("success", True))
+            except Exception:
+                success = True
             summary = _tool_result_summary(result)
-            yield {"type": "tool_result", "tool_call_id": tid, "name": name, "result_summary": summary, "result_full": result[:2000] if len(result) > 2000 else result}
-            current_messages.append({"role": "tool", "tool_call_id": tid, "content": result})
+            yield {
+                "type": "tool_result",
+                "tool_call_id": tid,
+                "name": name,
+                "result_summary": summary,
+                "result_full": result[:2000] if len(result) > 2000 else result,
+                "success": success,
+                "elapsed_seconds": round(elapsed, 1),
+            }
+            current_messages.append({"role": "tool", "tool_call_id": tid, "content": _truncate_tool_result_for_context(result)})
 
         # 第一轮工具执行完成后：请求「当前情况与计划」并推给用户，再继续执行
         if not plan_already_shown:
+            yield {"type": "phase", "phase": "plan"}
             plan_already_shown = True
             try:
                 plan_content = _request_plan_and_append_messages(
@@ -379,7 +411,8 @@ def chat_completion_stream_with_tool_events(provider_id: str, model: str, messag
                 if plan_content:
                     yield {"type": "plan", "content": plan_content}
             except Exception:
-                # 计划请求失败则直接继续下一轮，不阻塞
+                # 计划请求失败则推占位说明并继续下一轮，不阻塞
+                yield {"type": "plan", "content": "（计划生成暂时不可用，将直接继续执行）"}
                 current_messages.append({"role": "user", "content": _PLAN_CONTINUE_USER})
 
     yield {"type": "content", "content": ""}

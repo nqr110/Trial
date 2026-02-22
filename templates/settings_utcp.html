@@ -34,17 +34,6 @@
     </div>
 
     <div class="utcp-card">
-        <h2>日期时间 <code>GET/POST /api/utcp/datetime</code></h2>
-        <p class="desc">获取当前日期、时间、时区、星期、时间戳等。可选 timezone_hours（如 8 表示 UTC+8）。</p>
-        <div class="bar">
-            <input type="text" id="datetime-tz" placeholder="时区小时（可选，如 8）" value="8">
-            <button type="button" class="btn-call" data-endpoint="/api/utcp/datetime" data-method="GET" data-query-param="timezone_hours">调用 GET</button>
-            <button type="button" class="btn-call" data-endpoint="/api/utcp/datetime" data-method="POST" data-body-param="timezone_hours">调用 POST</button>
-        </div>
-        <pre class="out empty" data-target="datetime">点击「调用」查看响应</pre>
-    </div>
-
-    <div class="utcp-card">
         <h2>执行命令 <code>POST /api/utcp/shell</code></h2>
         <p class="desc">在服务器（Linux）上执行 shell 命令。可填超时秒数、工作目录（可选）。</p>
         <div class="bar">

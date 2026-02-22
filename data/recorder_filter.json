@@ -1,0 +1,9 @@
+{
+  "enabled": true,
+  "addresses": [
+    "sync.services.mozilla.com",
+    "incoming.telemetry.mozilla.org",
+    "mozilla-ohttp.fastly-edge.com",
+    "ai.immersivetranslate.com"
+  ]
+}
