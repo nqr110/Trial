@@ -41,31 +41,6 @@ def _inject_attachment_paths(messages, attachment_paths):
     return out
 
 
-def _trim_previous_long_assistant_if_new_topic(messages, use_utcp_tools):
-    """
-    若上一轮为长任务（assistant 含 tool_steps 且内容很长）且本轮用户消息很短（如「你好」），
-    则对上一轮助手内容做温和截断并加提示，避免模型误以为要继续执行上一轮任务。
-    """
-    if not use_utcp_tools or not messages or len(messages) < 2:
-        return messages
-    last = messages[-1]
-    prev = messages[-2]
-    if last.get("role") != "user" or prev.get("role") != "assistant":
-        return messages
-    prev_content = (prev.get("content") or "").strip()
-    prev_steps = prev.get("tool_steps") or []
-    new_user_content = (last.get("content") or "").strip()
-    if len(prev_steps) < 3 or len(prev_content) <= 2500 or len(new_user_content) >= 40:
-        return messages
-    max_keep = 2000
-    suffix = "\n\n[上一轮为自动化任务执行结果，已截断。请根据用户最新消息独立回复。]"
-    truncated = (prev_content[:max_keep] + suffix) if len(prev_content) > max_keep else prev_content
-    out = list(messages)
-    out[-2] = dict(prev)
-    out[-2]["content"] = truncated
-    return out
-
-
 def _model_label(provider_id, model):
     """根据 provider_id 与 model 返回展示用「服务商 - 模型」"""
     for m in get_available_models():
@@ -263,12 +238,116 @@ def api_upload():
     return jsonify({"paths": paths})
 
 
-def _inject_system_prompt(messages, use_utcp_tools):
-    """若配置了前置提示词（或启用 UTCP 时使用默认），则在 messages 前插入 system 消息；并附加默认语言约束。"""
+def _load_prompt_module(key):
+    """从 prompts/<key>.txt 读取内容，key 仅允许字母数字下划线，文件不存在返回空字符串。"""
+    if not key or not re.match(r"^[a-zA-Z0-9_]+$", str(key)):
+        return ""
+    root = current_app.config.get("PROJECT_ROOT")
+    if not root:
+        return ""
+    path = Path(root) / "prompts" / f"{key}.txt"
+    try:
+        if path.is_file():
+            return path.read_text(encoding="utf-8", errors="replace").strip()
+    except Exception:
+        pass
+    return ""
+
+
+def _apply_weknora_memory_if_enabled(messages, cfg):
+    """
+    若启用 WeKnora 对话记忆：仅用 WeKnora 检索结果作为上下文，送入模型的为 system + 一条 user（记忆 + 当前问题）。
+    不再使用本地滑动窗口。
+    """
+    if not cfg.get("weknora_memory_enabled") or not (cfg.get("weknora_base_url") or "").strip() or not (cfg.get("weknora_memory_kb_id") or "").strip():
+        return messages
+    try:
+        from services.weknora_memory import retrieve_memory, format_memory_for_prompt
+    except ImportError:
+        return messages
+    head = []
+    rest = list(messages)
+    if rest and rest[0].get("role") == "system":
+        head = [rest[0]]
+        rest = rest[1:]
+    last_user_content = ""
+    for m in reversed(rest):
+        if m.get("role") == "user":
+            last_user_content = (m.get("content") or "").strip()
+            break
+    if not last_user_content:
+        return messages
+    memory_chunks = retrieve_memory(last_user_content)
+    memory_text = format_memory_for_prompt(memory_chunks)
+    if memory_text:
+        user_content = memory_text + "\n\n---\n\n" + last_user_content
+    else:
+        user_content = last_user_content
+    return head + [{"role": "user", "content": user_content}]
+
+
+# 需求判断：仅询问进度/状态/总结时视为「对话分析」，本回合不调用工具
+_PROGRESS_STATUS_PATTERNS = (
+    r"当前进度",
+    r"进度\s*怎么样",
+    r"做到\s*哪",
+    r"到\s*哪\s*一步",
+    r"先说说\s*现在",
+    r"现在\s*什么\s*情况",
+    r"情况\s*怎么样",
+    r"总结\s*一下",
+    r"汇报\s*一下",
+    r"说说\s*进展",
+    r"进展\s*如何",
+    r"到哪了",
+    r"怎么样了\s*$",
+    r"现在\s*怎样\s*了",
+)
+
+
+def _is_progress_or_status_query(user_content: str) -> bool:
+    """
+    判断当前用户消息是否仅为「询问进度/状态/总结」（对话分析），
+    若是则本回合应只做自然语言回答、不执行自动化工具。
+    """
+    if not user_content or not isinstance(user_content, str):
+        return False
+    text = user_content.strip()
+    if len(text) > 200:
+        return False
+    for pat in _PROGRESS_STATUS_PATTERNS:
+        if re.search(pat, text, re.IGNORECASE):
+            return True
+    if re.search(r"^(现在|当前|目前|刚才).{0,20}(情况|进度|进展|状态|结果)", text):
+        return True
+    if re.search(r"(情况|进度|进展|状态)\s*(如何|怎样|怎么样|如何了)\s*[？?]?\s*$", text):
+        return True
+    return False
+
+
+def _inject_system_prompt(messages, use_utcp_tools, request_data=None):
+    """若配置了前置提示词（或启用 UTCP 时使用默认），则在 messages 前插入 system 消息；可追加动态模块并附加语言约束。"""
     cfg = current_app.config["CONFIG_LOADER"]()
     system_prompt = (cfg.get("system_prompt") or "").strip()
     if use_utcp_tools and not system_prompt:
         system_prompt = (current_app.config.get("DEFAULT_SYSTEM_PROMPT") or "").strip()
+    if use_utcp_tools and system_prompt:
+        system_prompt = (
+            system_prompt
+            + "\n\n【需求区分】当用户仅询问当前进度、状态或总结时（如「当前进度怎么样了？」「做到哪了？」），"
+            "只根据已有对话与历史工具结果用自然语言回答，本回合不要调用任何工具。"
+            "当认为任务已经完成时，请先简要分析再给出最终报告，可在开头使用【任务完成】便于用户识别。"
+        ).strip()
+    # 动态提示词模块：优先请求体 prompt_modules，否则用配置 system_prompt_modules
+    modules = []
+    if request_data and isinstance(request_data.get("prompt_modules"), list):
+        modules = [m for m in request_data["prompt_modules"] if isinstance(m, str)]
+    elif not modules and isinstance(cfg.get("system_prompt_modules"), list):
+        modules = [m for m in cfg["system_prompt_modules"] if isinstance(m, str)]
+    for key in modules:
+        part = _load_prompt_module(key)
+        if part:
+            system_prompt = (system_prompt + "\n\n" + part).strip()
     lang = (cfg.get("ai_default_language") or "zh").strip() or "zh"
     if lang == "zh":
         system_prompt = (system_prompt + "\n\n请始终使用中文回复。").strip()
@@ -299,15 +378,17 @@ def api_chat():
         if conv and conv.get("provider_id") is not None and conv.get("model") is not None:
             if conv.get("provider_id") != provider_id or conv.get("model") != model:
                 return jsonify({"error": "该对话已由固定模型维护，请使用对话绑定的模型继续"}), 400
-    messages = _inject_system_prompt(messages, use_utcp_tools)
+    messages = _inject_system_prompt(messages, use_utcp_tools, data)
     messages = _inject_attachment_paths(messages, attachment_paths)
-    messages = _trim_previous_long_assistant_if_new_topic(messages, use_utcp_tools)
     cfg = current_app.config["CONFIG_LOADER"]()
+    messages = _apply_weknora_memory_if_enabled(messages, cfg)
     max_tool_rounds = int(cfg.get("utcp_max_tool_rounds", 50))
     if cfg.get("utcp_unlimited_rounds"):
         max_tool_rounds = 9999
+    last_user = messages[-1].get("content", "") if messages else ""
+    use_tools_this_turn = use_utcp_tools and not _is_progress_or_status_query(last_user)
     try:
-        if use_utcp_tools:
+        if use_tools_this_turn:
             content = chat_completion_with_tools(
                 provider_id=provider_id, model=model, messages=messages,
                 max_tool_rounds=max_tool_rounds, use_deep_thinking=use_deep_thinking,
@@ -316,7 +397,6 @@ def api_chat():
             result = chat_completion(provider_id=provider_id, model=model, messages=messages)
             content = (result.get("choices") or [{}])[0].get("message", {}).get("content") or ""
         model_label = _model_label(provider_id, model)
-        last_user = messages[-1].get("content", "") if messages else ""
         if conversation_id:
             conv = get_conversation(conversation_id)
             if conv:
@@ -331,6 +411,12 @@ def api_chat():
                     summary = summarize_conversation_title(provider_id, model, last_user, content)
                     if summary:
                         update_conversation(conversation_id, title=summary)
+                try:
+                    from services.weknora_memory import append_turn_to_memory
+                    turn_text = "User: " + (last_user or "") + "\n\nAssistant: " + (content[:12000] if len(content) > 12000 else content)
+                    append_turn_to_memory(conversation_id, turn_text)
+                except Exception:
+                    pass
         else:
             conv = create_conversation(
                 title=(last_user[:50] if last_user else "新对话"),
@@ -374,15 +460,16 @@ def api_chat_stream():
                 return jsonify({"error": "该对话已由固定模型维护，请使用对话绑定的模型继续"}), 400
     _chat_debug("流式对话开始: provider_id=%s model=%s use_utcp_tools=%s use_deep_thinking=%s messages_count=%s" % (
         provider_id, model, use_utcp_tools, use_deep_thinking, len(messages)))
-    messages = _inject_system_prompt(messages, use_utcp_tools)
+    messages = _inject_system_prompt(messages, use_utcp_tools, data)
     messages = _inject_attachment_paths(messages, attachment_paths)
-    messages = _trim_previous_long_assistant_if_new_topic(messages, use_utcp_tools)
     cfg = current_app.config["CONFIG_LOADER"]()
+    messages = _apply_weknora_memory_if_enabled(messages, cfg)
     max_tool_rounds = int(cfg.get("utcp_max_tool_rounds", 50))
     if cfg.get("utcp_unlimited_rounds"):
         max_tool_rounds = 9999
 
     last_user = messages[-1].get("content", "") if messages else ""
+    use_tools_this_turn = use_utcp_tools and not _is_progress_or_status_query(last_user)
     model_label = _model_label(provider_id, model)
 
     def _save_partial(cid, content_parts, steps, plan_content=None):
@@ -430,10 +517,10 @@ def api_chat_stream():
         try:
             for chunk in chat_completion_stream(
                 provider_id=provider_id, model=model, messages=messages,
-                use_utcp_tools=use_utcp_tools, use_deep_thinking=use_deep_thinking,
+                use_utcp_tools=use_tools_this_turn, use_deep_thinking=use_deep_thinking,
                 max_tool_rounds=max_tool_rounds,
             ):
-                if use_utcp_tools and isinstance(chunk, dict):
+                if use_tools_this_turn and isinstance(chunk, dict):
                     ev = chunk
                     if ev.get("type") == "content":
                         full_content.append(ev.get("content") or "")
@@ -497,6 +584,14 @@ def api_chat_stream():
                     summary = summarize_conversation_title(provider_id, model, last_user, content)
                     if summary:
                         update_conversation(cid, title=summary)
+                try:
+                    from services.weknora_memory import append_turn_to_memory
+                    turn_text = "User: " + (last_user or "") + "\n\nAssistant: " + (content[:12000] if len(content) > 12000 else content)
+                    if tool_steps:
+                        turn_text += "\n\nTools: " + ", ".join((s.get("name") or "") for s in tool_steps[:20])
+                    append_turn_to_memory(cid, turn_text)
+                except Exception:
+                    pass
             yield f"data: {json.dumps({'conversation_id': cid, 'model_label': model_label}, ensure_ascii=False)}\n\n"
             _chat_debug("流式对话完成: conversation_id=%s 助手回复 %d 字" % (cid, len(content)))
         except Exception as e:

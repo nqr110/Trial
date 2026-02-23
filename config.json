@@ -40,8 +40,15 @@
   "conversation_lock_model": false,
   "web_preview_enabled": false,
   "system_prompt": "",
+  "system_prompt_modules": [],
   "safe_mode": false,
   "ai_default_language": "zh",
   "access_safe_mode": false,
-  "debug_mode": true
+  "debug_mode": true,
+  "weknora_base_url": "",
+  "weknora_api_key": "",
+  "weknora_knowledge_base_id": "",
+  "weknora_memory_enabled": false,
+  "weknora_memory_kb_id": "",
+  "weknora_memory_max_recent_turns": 20
 }

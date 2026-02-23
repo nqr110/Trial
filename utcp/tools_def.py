@@ -111,7 +111,7 @@ def get_openai_tools():
             "type": "function",
             "function": {
                 "name": "search_knowledge",
-                "description": "从知识库中检索与查询相关的资料片段。知识库位于项目 knowledge 目录（.md/.txt），适用于 CTF、漏洞利用、工具用法等。仅在你认为需要查阅项目内知识库资料时选用，非必须。",
+                "description": "从知识库中检索与查询相关的资料片段。若已配置 WeKnora 则使用语义检索；否则使用项目 knowledge 目录（.md/.txt）关键词检索。适用于 CTF、漏洞利用、工具用法等。仅在你认为需要查阅知识库资料时选用，非必须。",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -132,7 +132,7 @@ def get_openai_tools():
             "type": "function",
             "function": {
                 "name": "preview_web_page",
-                "description": "在对话页的实时预览区打开一个网页，供用户查看当前自动化任务涉及的页面。当任务涉及浏览器访问、本地启动的 Web 服务、或需要用户查看某 URL 时调用此工具，便于用户观察任务进度。",
+                "description": "在对话页的实时预览区打开一个网页，供用户查看当前自动化任务涉及的页面。当任务涉及浏览器访问、本地启动的 Web 服务、或需要用户查看某 URL 时调用此工具，便于用户观察任务进度。进行 Web 安全渗透测试时，应作为第一步先调用本工具访问目标页面，再分析源码与参数。",
                 "parameters": {
                     "type": "object",
                     "properties": {

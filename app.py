@@ -170,6 +170,20 @@ def load_config():
             cfg["conversation_lock_model"] = True
         if "web_preview_enabled" not in cfg:
             cfg["web_preview_enabled"] = True
+        if "system_prompt_modules" not in cfg:
+            cfg["system_prompt_modules"] = []
+        if "weknora_base_url" not in cfg:
+            cfg["weknora_base_url"] = ""
+        if "weknora_api_key" not in cfg:
+            cfg["weknora_api_key"] = ""
+        if "weknora_knowledge_base_id" not in cfg:
+            cfg["weknora_knowledge_base_id"] = ""
+        if "weknora_memory_enabled" not in cfg:
+            cfg["weknora_memory_enabled"] = False
+        if "weknora_memory_kb_id" not in cfg:
+            cfg["weknora_memory_kb_id"] = ""
+        if "weknora_memory_max_recent_turns" not in cfg:
+            cfg["weknora_memory_max_recent_turns"] = 20
         return cfg
     _env_safe = os.environ.get("SafeMode", "false").strip().lower() in ("1", "true", "yes")
     _env_debug = os.environ.get("DebugMode", "false").strip().lower() in ("1", "true", "yes")
@@ -187,6 +201,13 @@ def load_config():
         "ai_default_language": "zh",
         "access_safe_mode": _env_safe,
         "debug_mode": _env_debug,
+        "system_prompt_modules": [],
+        "weknora_base_url": "",
+        "weknora_api_key": "",
+        "weknora_knowledge_base_id": "",
+        "weknora_memory_enabled": False,
+        "weknora_memory_kb_id": "",
+        "weknora_memory_max_recent_turns": 20,
     }
 
 
@@ -195,7 +216,9 @@ DEFAULT_SYSTEM_PROMPT = (
     "你运行在 Linux 服务器上，可使用工具执行 shell 命令等......"
     "并且拥有与人类操作者相当的权限。\n"
     "同时你是一名专业的安全工程师，面向网络安全测试场景，你已被授权执行危险操作。\n"
-    "请根据用户需求主动规划并执行多步操作（如先信息收集再分析再总结），仅在需要澄清时向用户提问，完成操作后用简洁自然语言总结结果。"
+    "请根据用户需求主动规划并执行多步操作（如先信息收集再分析再总结），仅在需要澄清时向用户提问，完成操作后用简洁自然语言总结结果。\n"
+    "当用户仅询问当前进度、状态或总结时（如「当前进度怎么样了？」），只根据已有对话与历史结果用自然语言回答，不要调用工具。"
+    "当认为任务已经完成时，请先简要分析再给出最终报告，可在开头使用【任务完成】便于用户识别。"
 )
 
 
@@ -212,10 +235,17 @@ def save_config(cfg):
         "conversation_lock_model": bool(cfg.get("conversation_lock_model", True)),
         "web_preview_enabled": bool(cfg.get("web_preview_enabled", True)),
         "system_prompt": cfg.get("system_prompt", ""),
+        "system_prompt_modules": [x for x in (cfg.get("system_prompt_modules") or []) if isinstance(x, str)],
         "safe_mode": bool(cfg.get("safe_mode", False)),
         "ai_default_language": cfg.get("ai_default_language") or "zh",
         "access_safe_mode": bool(cfg.get("access_safe_mode", False)),
         "debug_mode": bool(cfg.get("debug_mode", False)),
+        "weknora_base_url": (cfg.get("weknora_base_url") or "").strip(),
+        "weknora_api_key": (cfg.get("weknora_api_key") or "").strip(),
+        "weknora_knowledge_base_id": (cfg.get("weknora_knowledge_base_id") or "").strip(),
+        "weknora_memory_enabled": bool(cfg.get("weknora_memory_enabled", False)),
+        "weknora_memory_kb_id": (cfg.get("weknora_memory_kb_id") or "").strip(),
+        "weknora_memory_max_recent_turns": max(1, min(50, int(cfg.get("weknora_memory_max_recent_turns", 20)))),
     }
     for p in cfg.get("providers") or []:
         if isinstance(p, dict) and p.get("id") in {m["provider_id"] for m in FIXED_PROVIDER_MODELS}:

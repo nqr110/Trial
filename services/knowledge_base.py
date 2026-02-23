@@ -1,18 +1,92 @@
 # -*- coding: utf-8 -*-
 """
-知识库：从 knowledge/ 目录加载 .md/.txt，按段落或长度切块，支持关键词检索。
+知识库：支持两种后端
+1) WeKnora（推荐）：配置 weknora_base_url 后，使用腾讯开源 WeKnora 的语义检索 API（/api/v1/knowledge-search）
+2) 本地：从 knowledge/ 目录加载 .md/.txt，按段落切块，关键词检索
 供 search_knowledge 工具调用，便于 AI 在 CTF 等场景下查阅资料。
 """
 import re
 from pathlib import Path
 
+try:
+    import requests
+except ImportError:
+    requests = None
+
 KNOWLEDGE_DIR = Path(__file__).resolve().parent.parent / "knowledge"
 CHUNK_MAX = 500
 TOP_K_DEFAULT = 5
+WEKNORA_SEARCH_PATH = "/api/v1/knowledge-search"
+WEKNORA_TIMEOUT = 30
 
 
 def _ensure_dir():
     KNOWLEDGE_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _get_weknora_config():
+    """从应用配置读取 WeKnora 相关配置（需在 Flask 请求上下文中）。"""
+    try:
+        from flask import current_app
+        load = current_app.config.get("CONFIG_LOADER")
+        if not load:
+            return None, None, None
+        cfg = load()
+        base = (cfg.get("weknora_base_url") or "").strip().rstrip("/")
+        if not base:
+            return None, None, None
+        api_key = (cfg.get("weknora_api_key") or "").strip()
+        kb_id = (cfg.get("weknora_knowledge_base_id") or "").strip() or None
+        return base, api_key or None, kb_id
+    except Exception:
+        return None, None, None
+
+
+def _weknora_search(query: str, top_k: int) -> dict:
+    """调用 WeKnora 知识搜索 API，将返回格式统一为与本地 search 一致。"""
+    base, api_key, kb_id = _get_weknora_config()
+    if not base or not requests:
+        return None
+    url = base + WEKNORA_SEARCH_PATH
+    headers = {"Content-Type": "application/json"}
+    if api_key:
+        headers["X-API-Key"] = api_key
+    payload = {"query": query}
+    if kb_id:
+        payload["knowledge_base_id"] = kb_id
+    try:
+        r = requests.post(url, json=payload, headers=headers, timeout=WEKNORA_TIMEOUT)
+        r.raise_for_status()
+        data = r.json()
+    except Exception as e:
+        return {
+            "success": False,
+            "protocol": "UTCP",
+            "message": "WeKnora 请求失败: " + str(e),
+            "data": None,
+        }
+    if not data.get("success") or "data" not in data:
+        return {
+            "success": False,
+            "protocol": "UTCP",
+            "message": data.get("message", "WeKnora 返回格式异常"),
+            "data": None,
+        }
+    raw_list = data.get("data") or []
+    results = []
+    for item in raw_list[:top_k]:
+        if isinstance(item, dict):
+            content = item.get("content") or ""
+            source = item.get("knowledge_filename") or item.get("knowledge_title") or "WeKnora"
+            results.append({"source": source, "text": content})
+        elif isinstance(item, str):
+            results.append({"source": "WeKnora", "text": item})
+    return {
+        "success": True,
+        "protocol": "UTCP",
+        "message": "ok",
+        "data": {"results": results, "total_chunks": len(raw_list)},
+    }
 
 
 def _chunk_text(text: str, source: str):
@@ -60,7 +134,9 @@ def load_chunks():
 
 
 def get_status():
-    """返回知识库状态：目录路径、文件数、块数、文件列表。"""
+    """返回知识库状态：后端类型、目录路径、文件数、块数、文件列表；若启用 WeKnora 则含 weknora_base_url。"""
+    weknora_base, _, _ = _get_weknora_config()
+    backend = "weknora" if weknora_base else "local"
     _ensure_dir()
     files = []
     total_chunks = 0
@@ -76,17 +152,22 @@ def get_status():
                 n = 0
             files.append({"path": rel, "chunks": n})
             total_chunks += n
-    return {
+    out = {
+        "backend": backend,
         "dir": str(KNOWLEDGE_DIR),
         "file_count": len(files),
         "chunk_count": total_chunks,
         "files": files,
     }
+    if weknora_base:
+        out["weknora_base_url"] = weknora_base
+    return out
 
 
 def search(query: str, top_k: int = TOP_K_DEFAULT) -> dict:
     """
-    按关键词检索知识库。返回 {"success": bool, "message": str, "data": {"results": [{"source", "text"}], "total_chunks": int}}。
+    按关键词/语义检索知识库。若已配置 WeKnora 则优先调用 WeKnora 语义检索，否则使用本地 knowledge 目录关键词检索。
+    返回 {"success": bool, "message": str, "data": {"results": [{"source", "text"}], "total_chunks": int}}。
     """
     query = (query or "").strip()
     if not query:
@@ -96,6 +177,9 @@ def search(query: str, top_k: int = TOP_K_DEFAULT) -> dict:
             "message": "query 不能为空",
             "data": None,
         }
+    weknora_result = _weknora_search(query, top_k)
+    if weknora_result is not None:
+        return weknora_result
     try:
         chunks = load_chunks()
     except Exception as e:

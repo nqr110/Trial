@@ -40,9 +40,10 @@
 .msg.assistant .bubble pre code { padding: 0; }
 /* 操作步骤子信息栏（类似 Cursor）：整体可收起；每条命令独立可展开，展开后不限制高度 */
 .steps-panel { width: 100%; margin-bottom: 0.5rem; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); flex-shrink: 0; }
-.steps-panel-header { display: flex; align-items: center; justify-content: space-between; padding: 0.4rem 0.75rem; font-size: 0.8rem; color: var(--muted); cursor: pointer; user-select: none; }
+.steps-panel-header { display: flex; align-items: center; justify-content: space-between; padding: 0.4rem 0.75rem; font-size: 0.8rem; color: var(--muted); cursor: pointer; user-select: none; gap: 0.5rem; }
 .steps-panel-header:hover { color: var(--text); background: rgba(0,0,0,0.03); border-radius: 8px 8px 0 0; }
-.steps-panel-arrow { font-size: 0.7rem; transition: transform 0.2s; }
+.steps-panel-total-time { margin-left: auto; font-size: 0.75rem; color: var(--muted); flex-shrink: 0; }
+.steps-panel-arrow { font-size: 0.7rem; transition: transform 0.2s; flex-shrink: 0; }
 .steps-panel.collapsed .steps-panel-arrow { transform: rotate(-90deg); }
 .steps-panel-body { overflow: visible; }
 .steps-panel.collapsed .steps-panel-body { display: none; }
@@ -435,7 +436,7 @@
             phaseEl.setAttribute('aria-live', 'polite');
             var header = document.createElement('div');
             header.className = 'steps-panel-header';
-            header.innerHTML = '<span class="steps-panel-summary">本轮执行 0 次命令</span><span class="steps-panel-arrow">▼</span>';
+            header.innerHTML = '<span class="steps-panel-summary">本轮执行 0 次命令</span><span class="steps-panel-total-time"></span><span class="steps-panel-arrow">▼</span>';
             header.addEventListener('click', function() { stepsPanel.classList.toggle('collapsed'); });
             var body = document.createElement('div');
             body.className = 'steps-panel-body';
@@ -466,7 +467,7 @@
             var n = options.tool_steps.length;
             var header = document.createElement('div');
             header.className = 'steps-panel-header';
-            header.innerHTML = '<span class="steps-panel-summary">本轮执行 ' + n + ' 次命令</span><span class="steps-panel-arrow">▼</span>';
+            header.innerHTML = '<span class="steps-panel-summary">本轮执行 ' + n + ' 次命令</span><span class="steps-panel-total-time"></span><span class="steps-panel-arrow">▼</span>';
             header.addEventListener('click', function() { stepsPanel.classList.toggle('collapsed'); });
             var body = document.createElement('div');
             body.className = 'steps-panel-body';
@@ -737,6 +738,7 @@
         var planPanel = null;
         var webPreviewPanel = null;
         var streamAbortController = new AbortController();
+        var streamStartTime = useUtcpStream ? Date.now() : 0;
         if (window.trialStreamAbort) window.trialStreamAbort = null;
         window.trialStreamAbort = function() { try { streamAbortController.abort(); } catch (e) {} };
 
@@ -953,7 +955,22 @@
             // #endregion
             if (stepsPanel && stepsPanelBody) {
                 if (stepsPanelBody.querySelectorAll('.step-item').length === 0) stepsPanel.style.display = 'none';
-                else updateStepsSummary();
+                else {
+                    updateStepsSummary();
+                    if (streamStartTime > 0) {
+                        var totalEl = stepsPanel.querySelector('.steps-panel-total-time');
+                        if (totalEl) {
+                            var ms = Date.now() - streamStartTime;
+                            var s = Math.floor(ms / 1000); var m = Math.floor(s / 60); var h = Math.floor(m / 60);
+                            s = s % 60; m = m % 60;
+                            var text = '总耗时 ';
+                            if (h > 0) text += h + '小时';
+                            if (m > 0 || h > 0) text += m + '分';
+                            text += s + '秒';
+                            totalEl.textContent = text;
+                        }
+                    }
+                }
             }
             var finalContent = streamPlanContent ? ('【当前情况与计划】\n\n' + streamPlanContent + '\n\n---\n\n' + streamContent) : streamContent;
             messages.push({ role: 'assistant', content: finalContent, model_label: currentLabel, tool_steps: streamToolSteps.length ? streamToolSteps : undefined });

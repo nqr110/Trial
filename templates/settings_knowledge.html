@@ -16,22 +16,63 @@
 .kb-table th { color: var(--muted); font-weight: 500; }
 .kb-table td:last-child { text-align: right; color: var(--muted); }
 .kb-empty { color: var(--muted); font-size: 0.875rem; padding: 0.75rem 0; }
+.kb-form-row { margin-bottom: 0.75rem; }
+.kb-form-row label { display: block; font-size: 0.875rem; margin-bottom: 0.25rem; color: var(--muted); }
+.kb-form-row input { width: 100%; padding: 0.5rem 0.75rem; border: 1px solid var(--border); border-radius: 8px; font-family: monospace; }
+.kb-backend-badge { display: inline-block; padding: 0.25rem 0.5rem; border-radius: 6px; font-size: 0.8rem; font-weight: 500; }
+.kb-backend-weknora { background: #e8f5e9; color: #2e7d32; }
+.kb-backend-local { background: #e3f2fd; color: #1565c0; }
 {% endblock %}
 {% block settings_content %}
 <div class="kb-wrap">
     <h1>知识库</h1>
     <section class="kb-section">
+        <h2>WeKnora 配置（可选）</h2>
+        <p class="desc">使用 <a href="https://github.com/Tencent/WeKnora" target="_blank" rel="noopener">WeKnora</a> 时，<code>search_knowledge</code> 将走语义检索；未配置时使用本地 <code>knowledge</code> 目录关键词检索。</p>
+        <form id="weknora-form" class="kb-form">
+            <div class="kb-form-row">
+                <label for="weknora_base_url">Base URL</label>
+                <input type="url" id="weknora_base_url" name="weknora_base_url" placeholder="http://localhost:8080" value="{{ weknora_base_url or '' }}">
+            </div>
+            <div class="kb-form-row">
+                <label for="weknora_api_key">API Key（可选）</label>
+                <input type="password" id="weknora_api_key" name="weknora_api_key" placeholder="sk-..." value="{{ weknora_api_key or '' }}" autocomplete="off">
+            </div>
+            <div class="kb-form-row">
+                <label for="weknora_knowledge_base_id">知识库 ID（可选，不填则搜索全部）</label>
+                <input type="text" id="weknora_knowledge_base_id" name="weknora_knowledge_base_id" placeholder="kb-00000001" value="{{ weknora_knowledge_base_id or '' }}">
+            </div>
+            <h3 style="font-size: 0.95rem; margin: 1rem 0 0.5rem 0;">WeKnora 对话记忆</h3>
+            <p class="desc">启用后，每轮对话会写入上述 Base URL 的「记忆知识库」，请求时只送最近 N 轮 + 检索到的相关记忆，适合长对话与自动化任务。</p>
+            <div class="kb-form-row">
+                <label><input type="checkbox" id="weknora_memory_enabled" name="weknora_memory_enabled" {% if weknora_memory_enabled %}checked{% endif %}> 启用对话记忆</label>
+            </div>
+            <div class="kb-form-row">
+                <label for="weknora_memory_kb_id">记忆知识库 ID（需在 WeKnora 中单独创建）</label>
+                <input type="text" id="weknora_memory_kb_id" name="weknora_memory_kb_id" placeholder="kb-00000002" value="{{ weknora_memory_kb_id or '' }}">
+            </div>
+            <div class="kb-form-row">
+                <label for="weknora_memory_max_recent_turns">最近保留轮数（1–50）</label>
+                <input type="number" id="weknora_memory_max_recent_turns" name="weknora_memory_max_recent_turns" min="1" max="50" value="{{ weknora_memory_max_recent_turns }}">
+            </div>
+            <button type="submit" class="btn primary">保存 WeKnora 配置</button>
+            <span id="weknora-msg" class="muted" style="margin-left: 0.5rem;"></span>
+        </form>
+    </section>
+    <section class="kb-section">
         <h2>状态</h2>
-        <p class="desc">知识库用于对话中 AI 检索参考（如 CTF 题型、漏洞利用、工具用法）。仅支持 <code>knowledge</code> 目录下的 .md / .txt 文件，每次检索时实时扫描该目录。</p>
+        <p class="desc">当前检索后端：<span class="kb-backend-badge kb-backend-{{ backend }}">{% if backend == 'weknora' %}WeKnora 语义检索{% else %}本地 knowledge 目录{% endif %}</span></p>
+        <p class="desc">知识库用于对话中 AI 的 <code>search_knowledge</code> 工具检索参考（如 CTF、漏洞利用、工具用法）。</p>
         <div class="kb-stat">
             <span class="kb-stat-item">目录：<span class="kb-dir">{{ dir }}</span></span>
             <span class="kb-stat-item">文件数：<strong>{{ file_count }}</strong></span>
             <span class="kb-stat-item">检索块数：<strong>{{ chunk_count }}</strong></span>
+            {% if weknora_base_url %}<span class="kb-stat-item">WeKnora：<span class="kb-dir">{{ weknora_base_url }}</span></span>{% endif %}
         </div>
-        <p class="kb-dir">在项目根下创建 <code>knowledge</code> 目录，放入 .md 或 .txt 即可。子目录中的文件也会被收录。</p>
+        <p class="kb-dir">本地模式：在项目根下创建 <code>knowledge</code> 目录，放入 .md 或 .txt 即可。配置 WeKnora 后将以 WeKnora 为主。</p>
     </section>
     <section class="kb-section">
-        <h2>已收录文件</h2>
+        <h2>已收录文件（本地）</h2>
         {% if files %}
         <table class="kb-table">
             <thead>
@@ -44,8 +85,29 @@
             </tbody>
         </table>
         {% else %}
-        <p class="kb-empty">暂无文件。请向 <code>knowledge</code> 目录添加 .md 或 .txt 文件。</p>
+        <p class="kb-empty">暂无文件。请向 <code>knowledge</code> 目录添加 .md 或 .txt 文件（本地模式时生效）。</p>
         {% endif %}
     </section>
 </div>
+<script>
+document.getElementById('weknora-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    var msg = document.getElementById('weknora-msg');
+    fetch('{{ url_for("settings.knowledge_api_weknora") }}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            weknora_base_url: document.getElementById('weknora_base_url').value.trim(),
+            weknora_api_key: document.getElementById('weknora_api_key').value,
+            weknora_knowledge_base_id: document.getElementById('weknora_knowledge_base_id').value.trim(),
+            weknora_memory_enabled: document.getElementById('weknora_memory_enabled').checked,
+            weknora_memory_kb_id: document.getElementById('weknora_memory_kb_id').value.trim(),
+            weknora_memory_max_recent_turns: parseInt(document.getElementById('weknora_memory_max_recent_turns').value, 10) || 20
+        })
+    }).then(function(r) { return r.json(); }).then(function(data) {
+        msg.textContent = data.ok ? '已保存' : (data.error || '保存失败');
+        if (data.ok) setTimeout(function() { location.reload(); }, 800);
+    }).catch(function() { msg.textContent = '请求失败'; });
+});
+</script>
 {% endblock %}

@@ -310,9 +310,17 @@ def global_clear_uploads():
 
 @settings_bp.route("/knowledge")
 def knowledge():
-    """知识库状态页：查看 knowledge 目录下的文件与块数"""
+    """知识库状态页：查看后端类型、WeKnora 配置、本地 knowledge 目录文件与块数"""
     from services.knowledge_base import get_status
+    load = current_app.config["CONFIG_LOADER"]
+    cfg = load()
     status = get_status()
+    status["weknora_base_url"] = cfg.get("weknora_base_url") or ""
+    status["weknora_api_key"] = cfg.get("weknora_api_key") or ""
+    status["weknora_knowledge_base_id"] = cfg.get("weknora_knowledge_base_id") or ""
+    status["weknora_memory_enabled"] = bool(cfg.get("weknora_memory_enabled", False))
+    status["weknora_memory_kb_id"] = cfg.get("weknora_memory_kb_id") or ""
+    status["weknora_memory_max_recent_turns"] = max(1, min(50, int(cfg.get("weknora_memory_max_recent_turns", 20))))
     return render_template("settings_knowledge.html", **status)
 
 
@@ -321,6 +329,43 @@ def knowledge_api_status():
     """API：返回知识库状态（JSON）"""
     from services.knowledge_base import get_status
     return jsonify(get_status())
+
+
+@settings_bp.route("/knowledge/api/weknora", methods=["GET", "POST"])
+def knowledge_api_weknora():
+    """GET 返回 WeKnora 配置（含对话记忆）；POST 保存（body: weknora_base_url, weknora_api_key, weknora_knowledge_base_id, weknora_memory_*）"""
+    load = current_app.config["CONFIG_LOADER"]
+    save = current_app.config["CONFIG_SAVER"]
+    if request.method == "GET":
+        cfg = load()
+        return jsonify({
+            "weknora_base_url": cfg.get("weknora_base_url") or "",
+            "weknora_api_key": cfg.get("weknora_api_key") or "",
+            "weknora_knowledge_base_id": cfg.get("weknora_knowledge_base_id") or "",
+            "weknora_memory_enabled": bool(cfg.get("weknora_memory_enabled", False)),
+            "weknora_memory_kb_id": cfg.get("weknora_memory_kb_id") or "",
+            "weknora_memory_max_recent_turns": max(1, min(50, int(cfg.get("weknora_memory_max_recent_turns", 20)))),
+        })
+    data = request.get_json() or {}
+    cfg = load()
+    if "weknora_base_url" in data:
+        cfg["weknora_base_url"] = (data.get("weknora_base_url") or "").strip()
+    if "weknora_api_key" in data:
+        cfg["weknora_api_key"] = (data.get("weknora_api_key") or "").strip()
+    if "weknora_knowledge_base_id" in data:
+        cfg["weknora_knowledge_base_id"] = (data.get("weknora_knowledge_base_id") or "").strip()
+    if "weknora_memory_enabled" in data:
+        cfg["weknora_memory_enabled"] = bool(data.get("weknora_memory_enabled", False))
+    if "weknora_memory_kb_id" in data:
+        cfg["weknora_memory_kb_id"] = (data.get("weknora_memory_kb_id") or "").strip()
+    if "weknora_memory_max_recent_turns" in data:
+        try:
+            n = max(1, min(50, int(data.get("weknora_memory_max_recent_turns", 20))))
+            cfg["weknora_memory_max_recent_turns"] = n
+        except (TypeError, ValueError):
+            pass
+    save(cfg)
+    return jsonify({"ok": True})
 
 
 @settings_bp.route("/utcp")
